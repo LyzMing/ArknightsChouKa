@@ -197,9 +197,12 @@ function rarityColor(name) {
 
 /* ---------------- 持久化 ---------------- */
 const calibKey = f => "akpull.v1." + f;
+const oldVideoPath = f => "视频素材/" + f.split("/").pop();
 function loadCalib(file) {
-  try { const v = JSON.parse(localStorage.getItem(calibKey(file))); 
-    if (v && v.start < v.end) return v; } catch (e) {}
+  for (const path of [file, oldVideoPath(file)]) {
+    try { const v = JSON.parse(localStorage.getItem(calibKey(path)));
+      if (v && v.start < v.end) return v; } catch (e) {}
+  }
   return null;
 }
 let muted = localStorage.getItem("akpull.muted") === "1";
@@ -228,7 +231,10 @@ $("randomBtn").addEventListener("click", () => {
   openStage(Math.floor(Math.random() * VIDEOS.length));
 });
 $("resetCalib").addEventListener("click", () => {
-  VIDEOS.forEach(v => localStorage.removeItem(calibKey(v.file)));
+  VIDEOS.forEach(v => {
+    localStorage.removeItem(calibKey(v.file));
+    localStorage.removeItem(calibKey(oldVideoPath(v.file)));
+  });
   toast("已重置全部校准");
 });
 
