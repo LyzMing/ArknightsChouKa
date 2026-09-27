@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>拉包模拟器</title>
+<style>
+  :root {
+    --bg: #0c0d0f;
+    --panel: #16181c;
+    --line: #2a2d33;
+    --txt: #e8e9eb;
+    --dim: #8b8f98;
+    --accent: #ffcf5c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); color: var(--txt);
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; overflow: hidden; }
+  button { font-family: inherit; }
+
+  /* ---------- 选中界面 ---------- */
+  #gallery { height: 100%; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 28px; padding: 24px; }
+  #gallery h1 { font-size: 30px; font-weight: 600; letter-spacing: 12px; text-indent: 12px; }
+  #gallery .sub { color: var(--dim); font-size: 13px; letter-spacing: 4px; margin-top: -18px; }
+  #cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 22px; max-width: 1240px; }
+  .card { width: 264px; background: var(--panel); border: 1px solid var(--line);
+    cursor: pointer; transition: transform .18s ease, border-color .18s ease; position: relative; }
+  .card:hover { transform: translateY(-4px); border-color: var(--rc, var(--accent)); }
+  .card .thumb { width: 100%; aspect-ratio: 16/9; background: #000; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; }
+  .card video { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+  .card .meta { padding: 10px 14px 12px; display: flex; align-items: center; gap: 10px; }
+  .card .tag { width: 4px; height: 18px; background: var(--rc, var(--accent)); flex: none; }
+  .card .name { font-size: 15px; letter-spacing: 2px; }
+  .card .gear { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px;
+    background: rgba(0,0,0,.55); border: 1px solid var(--line); color: var(--dim);
+    font-size: 15px; cursor: pointer; display: none; align-items: center; justify-content: center; }
+  .card:hover .gear { display: flex; }
+  .card .gear:hover { color: var(--txt); border-color: var(--dim); }
+  #randomBtn { background: none; border: 1px solid var(--accent); color: var(--accent);
+    padding: 12px 46px; font-size: 15px; letter-spacing: 6px; text-indent: 6px; cursor: pointer;
+    transition: background .15s, color .15s; }
+  #randomBtn:hover { background: var(--accent); color: #000; }
+  .footHint { color: #565a63; font-size: 12px; letter-spacing: 1px; }
+  .footHint button { background: none; border: none; color: #6d7280; cursor: pointer;
+    text-decoration: underline; font-size: 12px; }
+
+  /* ---------- 抽卡舞台 ---------- */
+  #stage { position: fixed; inset: 0; background: #000; display: none; }
+  #stage.on { display: block; }
+  #stage.ready, #stage.drag { cursor: grab; }
+  #stage.drag { cursor: grabbing; }
+  #video { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+  .stageBtn { position: absolute; z-index: 5; background: rgba(10,10,12,.6);
+    border: 1px solid rgba(255,255,255,.18); color: #cfd2d8; cursor: pointer;
+    font-size: 13px; letter-spacing: 2px; padding: 8px 14px; transition: color .15s, border-color .15s; }
+  .stageBtn:hover { color: #fff; border-color: rgba(255,255,255,.5); }
+  #backBtn { top: 18px; left: 18px; }
+  #rightCtl { position: absolute; top: 18px; right: 18px; display: flex; gap: 10px; z-index: 5; }
+  #rightCtl .stageBtn { position: static; }
+  #skipBtn { bottom: 34px; right: 22px; display: none; }
+  #stage.intro #skipBtn { display: block; }
+
+  #hint { position: absolute; left: 0; right: 0; bottom: 9%; text-align: center;
+    pointer-events: none; opacity: 0; transition: opacity .3s; z-index: 4; }
+  #stage.ready #hint { opacity: 1; }
+  #stage.ready.started #hint { opacity: 0; }
+  #hint .arrow { display: inline-block; font-size: 26px; color: var(--accent);
+    animation: slideL 1.4s ease-in-out infinite; }
+  #hint .txt { color: #d8dade; font-size: 15px; letter-spacing: 4px; margin-top: 6px;
+    text-shadow: 0 1px 6px #000; }
+  @keyframes slideL { 0% { transform: translateX(26px); opacity: 0; }
+    35% { opacity: 1; } 70% { transform: translateX(-18px); opacity: 1; }
+    100% { transform: translateX(-30px); opacity: 0; } }
+
+  #bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 0%;
+    background: var(--accent); z-index: 4; }
+
+  #ended { position: absolute; inset: 0; z-index: 6; display: none;
+    align-items: flex-end; justify-content: center; padding-bottom: 9%;
+    background: linear-gradient(transparent 55%, rgba(0,0,0,.55)); }
+  #stage.ended #ended { display: flex; }
+  #ended .row { display: flex; gap: 16px; }
+  #ended button { background: rgba(12,13,15,.8); border: 1px solid var(--line);
+    color: var(--txt); padding: 12px 30px; font-size: 14px; letter-spacing: 4px;
+    text-indent: 4px; cursor: pointer; transition: border-color .15s, color .15s; }
+  #ended button:hover { border-color: var(--accent); color: var(--accent); }
+  #ended button.primary { border-color: var(--accent); color: var(--accent); }
+  #ended button.primary:hover { background: var(--accent); color: #000; }
+
+  /* ---------- 校准面板 ---------- */
+  #calib { position: fixed; inset: 0; z-index: 20; display: none;
+    align-items: center; justify-content: center; background: rgba(0,0,0,.66); }
+  #calib.on { display: flex; }
+  #calib .box { width: min(600px, 92vw); background: var(--panel); border: 1px solid var(--line); padding: 22px 26px 24px; }
+  #calib h2 { font-size: 17px; letter-spacing: 3px; font-weight: 600; }
+  #calib .tip { color: var(--dim); font-size: 12.5px; line-height: 1.7; margin: 10px 0 16px; }
+  #zoneBar { position: relative; height: 34px; background: #0a0b0d; border: 1px solid var(--line); margin-bottom: 14px; }
+  #zonePull { position: absolute; top: 0; bottom: 0; background: rgba(255,207,92,.30);
+    border-left: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+  .zHandle { position: absolute; top: -5px; bottom: -5px; width: 14px; cursor: ew-resize; touch-action: none; }
+  .zHandle::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0;
+    width: 3px; transform: translateX(-50%); background: var(--accent); }
+  #zonePlay { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; opacity: .85; }
+  #calib input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+  #calib .val { display: flex; justify-content: space-between; color: var(--dim);
+    font-size: 12.5px; margin: 6px 0 14px; font-variant-numeric: tabular-nums; }
+  #calib .val b { color: var(--accent); font-weight: 600; }
+  #calib .btns { display: flex; flex-wrap: wrap; gap: 10px; }
+  #calib button { background: none; border: 1px solid var(--line); color: var(--txt);
+    padding: 9px 16px; font-size: 13px; letter-spacing: 1px; cursor: pointer; transition: border-color .15s, color .15s; }
+  #calib button:hover { border-color: var(--accent); color: var(--accent); }
+  #calib .close { margin-left: auto; }
+  #calib button.danger:hover { border-color: #e05555; color: #e05555; }
+
+  #toast { position: fixed; left: 50%; bottom: 46px; transform: translateX(-50%);
+    background: rgba(20,22,26,.95); border: 1px solid var(--line); color: var(--txt);
+    padding: 10px 22px; font-size: 13px; letter-spacing: 1px; z-index: 50;
+    opacity: 0; pointer-events: none; transition: opacity .25s; }
+  #toast.on { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div id="gallery">
+  <h1>拉包模拟器</h1>
+  <div class="sub">HUMAN RESOURCE PACKAGE</div>
+  <div id="cards"></div>
+  <button id="randomBtn">随机一抽</button>
+  <div class="footHint">按住向左拖动拉开拉链 · 档案弹出后自动播放 ·
+    <button id="resetCalib">重置全部校准</button></div>
+</div>
+
+<div id="stage">
+  <video id="video" preload="auto" playsinline></video>
+  <button class="stageBtn" id="backBtn">← 返回</button>
+  <div id="rightCtl">
+    <button class="stageBtn" id="muteBtn">🔊</button>
+    <button class="stageBtn" id="calibBtn">校准</button>
+  </div>
+  <button class="stageBtn" id="skipBtn">跳过 ▸</button>
+  <div id="hint"><span class="arrow">◀</span><div class="txt">按 住 向 左 拖 动 拉 开 拉 链</div></div>
+  <div id="bar"></div>
+  <div id="ended"><div class="row">
+    <button class="primary" id="againBtn">再抽一次</button>
+    <button id="luckyBtn">换个手气</button>
+    <button id="toListBtn">返回列表</button>
+  </div></div>
+</div>
+
+<div id="calib">
+  <div class="box">
+    <h2 id="calibTitle">校准</h2>
+    <div class="tip">
+      白色游标：拖动下方滑块或点击进度条移动。<br>
+      <b>拉包段</b>（黄色区域）= 鼠标可控的部分：左边界是"开始能拖"的起点，右边界是"拉链完全拉开、档案即将弹出"的终点，终点之后自动播放。拖动两个黄色手柄调整。
+    </div>
+    <div id="zoneBar">
+      <div id="zonePull"><div class="zHandle" id="hStart" data-k="start"></div><div class="zHandle" id="hEnd" data-k="end"></div></div>
+      <div id="zonePlay"></div>
+    </div>
+    <input type="range" id="scrub" min="0" max="1000" value="0">
+    <div class="val">
+      <span>当前 <b id="vCur">0.00s</b></span>
+      <span>起点 <b id="vStart">0.00s</b> ｜ 终点 <b id="vEnd">0.00s</b> ｜ 总长 <span id="vDur">0.00s</span></span>
+    </div>
+    <div class="btns">
+      <button id="setStart">起点=当前</button>
+      <button id="setEnd">终点=当前</button>
+      <button id="testPlay">试播拉包段</button>
+      <button id="defCalib" class="danger">恢复默认</button>
+      <button id="closeCalib" class="close">完成</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="videos.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const VIDEOS = window.AK_VIDEOS || [];
+const DEFAULT_PULL = { start: 2.9, end: 3.55 };
+
+/* 按文件名猜稀有度色，仅用于卡片装饰 */
+function rarityColor(name) {
+  if (name.includes("六")) return "#ff9b1c";
+  if (name.includes("五")) return "#e8b83a";
+  if (name.includes("四")) return "#8f7bff";
+  if (name.includes("白光")) return "#dfe3e8";
+  return "#cfd2d8";
+}
+
+/* ---------------- 持久化 ---------------- */
+const calibKey = f => "akpull.v1." + f;
+function loadCalib(file) {
+  try { const v = JSON.parse(localStorage.getItem(calibKey(file))); 
+    if (v && v.start < v.end) return v; } catch (e) {}
+  return null;
+}
+let muted = localStorage.getItem("akpull.muted") === "1";
+
+/* ---------------- 选中界面 ---------------- */
+const cardsEl = $("cards");
+VIDEOS.forEach((item, i) => {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.style.setProperty("--rc", rarityColor(item.name));
+  card.innerHTML =
+    `<div class="thumb"><video src="${item.file}#t=2.9" muted preload="metadata" playsinline></video></div>` +
+    `<div class="meta"><div class="tag"></div><div class="name"></div></div>` +
+    `<button class="gear" title="校准拉包段">⚙</button>`;
+  card.querySelector(".name").textContent = item.name;
+  const tv = card.querySelector("video");
+  tv.addEventListener("loadedmetadata", () => { tv.currentTime = 2.9; });
+  card.addEventListener("click", () => openStage(i));
+  card.querySelector(".gear").addEventListener("click", e => {
+    e.stopPropagation(); openStage(i, true);
+  });
+  cardsEl.appendChild(card);
+});
+$("randomBtn").addEventListener("click", () => {
+  if (!VIDEOS.length) return toast("没有视频素材");
+  openStage(Math.floor(Math.random() * VIDEOS.length));
+});
+$("resetCalib").addEventListener("click", () => {
+  VIDEOS.forEach(v => localStorage.removeItem(calibKey(v.file)));
+  toast("已重置全部校准");
+});
+
+/* ---------------- 舞台 / 状态机 ----------------
+   intro  片头自动播(0→start)   ready  拉链停住等待拖动(可停在中途)
+   drag   按住拖动中            commit 补间冲向终点
+   auto   档案弹出后自动播(不可控)  ended 播完出按钮 */
+const stage = $("stage"), video = $("video"), bar = $("bar");
+const S = { view: "gallery", phase: "idle", item: null, start: 2.9, end: 3.55 };
+const drag = { lastX: 0, p: 0 };
+let rafId = 0;
+
+function pToTime(p) { return S.start + p * (S.end - S.start); }
+function pullPx() { return clamp(innerWidth * 0.35, 300, 480); }
+function setPhase(p) {
+  S.phase = p;
+  stage.classList.toggle("ready", p === "ready");
+  stage.classList.toggle("drag", p === "drag");
+  stage.classList.toggle("intro", p === "intro");
+  stage.classList.toggle("ended", p === "ended");
+  if (p === "intro" || p === "ended") bar.style.width = "0%";
+}
+
+function openStage(i, withCalib) {
+  S.item = VIDEOS[i];
+  if (!S.item) return;
+  const c = loadCalib(S.item.file);
+  S.start = (c ? c.start : S.item.start) || DEFAULT_PULL.start;
+  S.end   = (c ? c.end   : S.item.end)   || DEFAULT_PULL.end;
+  S.view = "stage";
+  drag.p = 0;
+  stage.classList.remove("started");
+  stage.classList.add("on");
+  video.src = S.item.file;
+  video.muted = muted;
+  video.currentTime = 0;
+  setPhase("intro");
+  playSafe();
+  if (!rafId) rafId = requestAnimationFrame(loop); // 驱动片头切换与进度条
+  if (withCalib) setTimeout(() => openCalib(), 60);
+}
+function closeStage() {
+  video.pause();
+  video.removeAttribute("src"); video.load();
+  S.view = "gallery"; setPhase("idle");
+  stage.classList.remove("on");
+  closeCalib();
+}
+function playSafe() {
+  video.play().catch(() => { // 浏览器拦截出声播放时静音重试
+    video.muted = true; setMuteIcon();
+    video.play().catch(() => toast("播放被浏览器拦截，请再试一次"));
+  });
+}
+function setMuteIcon() { $("muteBtn").textContent = muted ? "🔇" : "🔊"; }
+setMuteIcon();
+
+/* rAF 循环：interruption 精切起点 + auto 段进度条 */
+function loop() {
+  if (S.view !== "stage") { rafId = 0; return; }
+  if (S.phase === "intro" && video.currentTime >= S.start - 0.02) {
+    video.pause(); video.currentTime = S.start; setPhase("ready");
+  }
+  if (S.phase === "auto" && video.duration)
+    bar.style.width = (video.currentTime / video.duration * 100) + "%";
+  rafId = requestAnimationFrame(loop);
+}
+
+video.addEventListener("ended", () => { if (S.phase === "auto") setPhase("ended"); });
+video.addEventListener("error", () => { if (S.view === "stage") toast("视频加载失败"); });
+
+/* ---------------- 拖动拉包（右→左，松手停在中途） ---------------- */
+stage.addEventListener("pointerdown", e => {
+  if (S.phase !== "ready" || e.target.closest("button")) return;
+  try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+  drag.p = clamp((video.currentTime - S.start) / (S.end - S.start), 0, 1);
+  drag.lastX = e.clientX;
+  setPhase("drag");
+});
+stage.addEventListener("pointermove", e => {
+  if (S.phase !== "drag") return;
+  drag.p = clamp(drag.p - (e.clientX - drag.lastX) / pullPx(), 0, 1);
+  drag.lastX = e.clientX;
+  video.currentTime = pToTime(drag.p);
+  bar.style.width = drag.p * 100 + "%";
+  if (drag.p >= 1) commit();
+});
+stage.addEventListener("pointerup", () => {
+  if (S.phase !== "drag") return;
+  park();
+});
+stage.addEventListener("pointercancel", () => {
+  if (S.phase === "drag") park();
+});
+stage.addEventListener("contextmenu", e => { if (S.phase === "drag") e.preventDefault(); });
+
+/* 缓动补间 */
+function tween(from, to, dur, ease, onU, onEnd) {
+  const t0 = performance.now();
+  (function step(now) {
+    if (S.view !== "stage") return;
+    const k = clamp((now - t0) / dur, 0, 1);
+    onU(from + (to - from) * ease(k));
+    if (k < 1) requestAnimationFrame(step); else onEnd && onEnd();
+  })(t0);
+}
+const easeInQuad = k => k * k;
+
+/* 松手：停在当前进度，已开始过就不再显示提示 */
+function park() {
+  stage.classList.toggle("started", drag.p > 0.02);
+  setPhase("ready");
+}
+function commit() {
+  setPhase("commit");
+  const p0 = clamp(drag.p, 0, 1);
+  tween(p0, 1, 130 + 200 * (1 - p0), easeInQuad,
+    v => { video.currentTime = pToTime(v); bar.style.width = v * 100 + "%"; },
+    () => { video.currentTime = S.end; setPhase("auto"); playSafe(); });
+}
+
+/* ---------------- 舞台按钮 ---------------- */
+$("backBtn").addEventListener("click", closeStage);
+$("skipBtn").addEventListener("click", () => {
+  if (S.phase === "intro") { video.pause(); video.currentTime = S.start; setPhase("ready"); }
+});
+$("muteBtn").addEventListener("click", () => {
+  muted = !muted; localStorage.setItem("akpull.muted", muted ? "1" : "0");
+  video.muted = muted; setMuteIcon();
+});
+$("againBtn").addEventListener("click", () => {
+  drag.p = 0;
+  stage.classList.remove("started");
+  video.currentTime = 0; setPhase("intro"); playSafe();
+});
+$("luckyBtn").addEventListener("click", () => {
+  let i = Math.floor(Math.random() * VIDEOS.length);
+  if (VIDEOS.length > 1 && VIDEOS[i] === S.item) i = (i + 1) % VIDEOS.length;
+  openStage(i);
+});
+$("toListBtn").addEventListener("click", closeStage);
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    if ($("calib").classList.contains("on")) closeCalib();
+    else if (S.view === "stage") closeStage();
+  }
+});
+
+/* ---------------- 校准 ---------------- */
+const calib = $("calib"), scrub = $("scrub");
+let calibTesting = false;
+
+function openCalib() {
+  if (S.view !== "stage") return;
+  calibTesting = false;
+  calib.classList.add("on");
+  $("calibTitle").textContent = "校准 · " + S.item.name;
+  refreshCalibUI();
+}
+function closeCalib() { calib.classList.remove("on"); video.pause(); calibTesting = false; }
+function refreshCalibUI() {
+  const d = video.duration || 1;
+  $("vStart").textContent = S.start.toFixed(2) + "s";
+  $("vEnd").textContent = S.end.toFixed(2) + "s";
+  $("vDur").textContent = d.toFixed(2) + "s";
+  $("vCur").textContent = video.currentTime.toFixed(2) + "s";
+  const zp = $("zonePull");
+  zp.style.left = S.start / d * 100 + "%";
+  zp.style.width = (S.end - S.start) / d * 100 + "%";
+  $("hStart").style.left = "-6px";
+  $("hEnd").style.right = "-6px";
+  $("zonePlay").style.left = clamp(video.currentTime / d * 100, 0, 100) + "%";
+  if (!scrubMatch()) scrub.value = Math.round(video.currentTime / d * 1000);
+}
+let lastScrub = -1;
+function scrubMatch() { return Math.abs(+scrub.value - lastScrub) < 2 && lastScrub >= 0; }
+
+$("calibBtn").addEventListener("click", () => {
+  if (S.phase === "intro" || S.phase === "ready" || S.phase === "ended" || calib.classList.contains("on")) {
+    video.pause();
+    if (S.phase !== "idle") video.currentTime = clamp(video.currentTime, S.start, S.end);
+    calib.classList.contains("on") ? closeCalib() : openCalib();
+  } else toast("等这段播完再校准～");
+});
+scrub.addEventListener("input", () => {
+  lastScrub = +scrub.value;
+  video.pause(); calibTesting = false;
+  video.currentTime = +scrub.value / 1000 * (video.duration || 0);
+  refreshCalibUI();
+});
+$("setStart").addEventListener("click", () => {
+  S.start = clamp(video.currentTime, 0, S.end - 0.2); saveCalib(); refreshCalibUI();
+});
+$("setEnd").addEventListener("click", () => {
+  S.end = clamp(video.currentTime, S.start + 0.2, video.duration); saveCalib(); refreshCalibUI();
+});
+$("testPlay").addEventListener("click", () => {
+  video.currentTime = Math.max(0, S.start - 0.3); calibTesting = true; playSafe();
+});
+$("defCalib").addEventListener("click", () => {
+  localStorage.removeItem(calibKey(S.item.file));
+  S.start = S.item.start || DEFAULT_PULL.start;
+  S.end = S.item.end || DEFAULT_PULL.end;
+  toast("已恢复默认"); refreshCalibUI();
+});
+$("closeCalib").addEventListener("click", closeCalib);
+function saveCalib() { localStorage.setItem(calibKey(S.item.file), JSON.stringify({ start: S.start, end: S.end })); }
+
+/* 校准区域手柄拖动 */
+document.querySelectorAll(".zHandle").forEach(h => {
+  h.addEventListener("pointerdown", e => {
+    h.setPointerCapture(e.pointerId);
+    h._move = ev => {
+      const r = $("zoneBar").getBoundingClientRect();
+      const t = clamp((ev.clientX - r.left) / r.width, 0, 1) * (video.duration || 0);
+      if (h.dataset.k === "start") S.start = clamp(t, 0, S.end - 0.2);
+      else S.end = clamp(t, S.start + 0.2, video.duration);
+      saveCalib(); refreshCalibUI();
+    };
+    h.addEventListener("pointermove", h._move);
+    h.addEventListener("pointerup", () => { h.removeEventListener("pointermove", h._move); }, { once: true });
+  });
+});
+
+/* 校准打开期间用一个轻量 rAF 刷新游标 + 试播截止 */
+setInterval(() => {
+  if (!calib.classList.contains("on")) return;
+  $("vCur").textContent = video.currentTime.toFixed(2) + "s";
+  const d = video.duration || 1;
+  $("zonePlay").style.left = clamp(video.currentTime / d * 100, 0, 100) + "%";
+  if (calibTesting && video.currentTime >= S.end + 1.2) {
+    video.pause(); calibTesting = false;
+    toast("拉包段试播结束（后面 1.2s 是自动段开头）");
+  }
+}, 100);
+
+/* ---------------- 杂项 ---------------- */
+let toastTimer = 0;
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("on"), 2200);
+}
+window.addEventListener("resize", () => { if (calib.classList.contains("on")) refreshCalibUI(); });
+</script>
+</body>
+</html>
