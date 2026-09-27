@@ -141,7 +141,7 @@
     <button class="stageBtn" id="calibBtn">校准</button>
   </div>
   <button class="stageBtn" id="skipBtn">跳过 ▸</button>
-  <div id="hint"><span class="arrow">◀</span><div class="txt">按 住 向 左 拖 动 拉 开 拉 链</div></div>
+  <div id="hint"><span class="arrow">◀</span><div class="txt">从 右 侧 拉 链 头 按 住 向 左 拖 动</div></div>
   <div id="bar"></div>
   <div id="ended"><div class="row">
     <button class="primary" id="againBtn">再抽一次</button>
@@ -184,7 +184,7 @@
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const VIDEOS = window.AK_VIDEOS || [];
-const DEFAULT_PULL = { start: 2.9, end: 3.55 };
+const DEFAULT_PULL = { start: 2.9, end: 4.65 };
 
 /* 按文件名猜稀有度色，仅用于卡片装饰 */
 function rarityColor(name) {
@@ -201,7 +201,9 @@ const oldVideoPath = f => "视频素材/" + f.split("/").pop();
 function loadCalib(file) {
   for (const path of [file, oldVideoPath(file)]) {
     try { const v = JSON.parse(localStorage.getItem(calibKey(path)));
-      if (v && v.start < v.end) return v; } catch (e) {}
+      // 旧版 2.90–3.55s 是未校准的默认区间；忽略它，让新素材终点生效。
+      if (v && v.start < v.end && !(v.start === 2.9 && v.end === 3.55)) return v;
+    } catch (e) {}
   }
   return null;
 }
@@ -243,12 +245,29 @@ $("resetCalib").addEventListener("click", () => {
    drag   按住拖动中            commit 补间冲向终点
    auto   档案弹出后自动播(不可控)  ended 播完出按钮 */
 const stage = $("stage"), video = $("video"), bar = $("bar");
-const S = { view: "gallery", phase: "idle", item: null, start: 2.9, end: 3.55 };
-const drag = { lastX: 0, p: 0 };
+const S = { view: "gallery", phase: "idle", item: null, start: 2.9, end: 4.65 };
+const drag = { lastX: 0, p: 0, pointerId: null };
 let rafId = 0;
+let seekRafId = 0;
 
 function pToTime(p) { return S.start + p * (S.end - S.start); }
-function pullPx() { return clamp(innerWidth * 0.35, 300, 480); }
+function pullPx() {
+  // 素材中的拉链头约从画面右侧 76% 移动到左侧 21%。按实际显示宽度换算，投屏时也能跟手。
+  const visibleWidth = Math.min(video.clientWidth,
+    video.clientHeight * (video.videoWidth || 1606) / (video.videoHeight || 720));
+  return Math.max(240, visibleWidth * 0.55);
+}
+function cancelPullSeek() {
+  if (seekRafId) cancelAnimationFrame(seekRafId);
+  seekRafId = 0;
+}
+function queuePullSeek() {
+  if (seekRafId) return;
+  seekRafId = requestAnimationFrame(() => {
+    seekRafId = 0;
+    if (S.view === "stage" && S.phase === "drag") video.currentTime = pToTime(drag.p);
+  });
+}
 function setPhase(p) {
   S.phase = p;
   stage.classList.toggle("ready", p === "ready");
@@ -259,6 +278,7 @@ function setPhase(p) {
 }
 
 function openStage(i, withCalib) {
+  cancelPullSeek();
   S.item = VIDEOS[i];
   if (!S.item) return;
   const c = loadCalib(S.item.file);
@@ -277,6 +297,7 @@ function openStage(i, withCalib) {
   if (withCalib) setTimeout(() => openCalib(), 60);
 }
 function closeStage() {
+  cancelPullSeek();
   video.pause();
   video.removeAttribute("src"); video.load();
   S.view = "gallery"; setPhase("idle");
@@ -308,26 +329,31 @@ video.addEventListener("error", () => { if (S.view === "stage") toast("视频加
 
 /* ---------------- 拖动拉包（右→左，松手停在中途） ---------------- */
 stage.addEventListener("pointerdown", e => {
-  if (S.phase !== "ready" || e.target.closest("button")) return;
+  if (S.phase !== "ready" || e.target.closest("button") || e.button !== 0 || !e.isPrimary) return;
   try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+  drag.pointerId = e.pointerId;
   drag.p = clamp((video.currentTime - S.start) / (S.end - S.start), 0, 1);
   drag.lastX = e.clientX;
   setPhase("drag");
 });
 stage.addEventListener("pointermove", e => {
-  if (S.phase !== "drag") return;
+  if (S.phase !== "drag" || e.pointerId !== drag.pointerId) return;
   drag.p = clamp(drag.p - (e.clientX - drag.lastX) / pullPx(), 0, 1);
   drag.lastX = e.clientX;
-  video.currentTime = pToTime(drag.p);
   bar.style.width = drag.p * 100 + "%";
   if (drag.p >= 1) commit();
+  else queuePullSeek();
 });
-stage.addEventListener("pointerup", () => {
-  if (S.phase !== "drag") return;
+stage.addEventListener("pointerup", e => {
+  if (S.phase !== "drag" || e.pointerId !== drag.pointerId) return;
+  drag.pointerId = null;
   park();
 });
-stage.addEventListener("pointercancel", () => {
-  if (S.phase === "drag") park();
+stage.addEventListener("pointercancel", e => {
+  if (S.phase === "drag" && e.pointerId === drag.pointerId) {
+    drag.pointerId = null;
+    park();
+  }
 });
 stage.addEventListener("contextmenu", e => { if (S.phase === "drag") e.preventDefault(); });
 
@@ -345,10 +371,14 @@ const easeInQuad = k => k * k;
 
 /* 松手：停在当前进度，已开始过就不再显示提示 */
 function park() {
+  cancelPullSeek();
+  video.currentTime = pToTime(drag.p);
   stage.classList.toggle("started", drag.p > 0.02);
   setPhase("ready");
 }
 function commit() {
+  cancelPullSeek();
+  drag.pointerId = null;
   setPhase("commit");
   const p0 = clamp(drag.p, 0, 1);
   tween(p0, 1, 130 + 200 * (1 - p0), easeInQuad,

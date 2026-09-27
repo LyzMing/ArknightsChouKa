@@ -16,6 +16,8 @@ function scan(dir, parts = []) {
 }
 
 const order = ["六星", "五星", "四星", "白光"];
+// 拉链完全拉开的画面时间。四星素材的动作比其他三段稍长。
+const pullEnd = { "六星": 4.65, "五星": 4.65, "四星": 5.0, "白光": 4.65 };
 const files = scan(DIR).sort((a, b) => {
   const aRank = order.indexOf(a.split("/")[0]);
   const bRank = order.indexOf(b.split("/")[0]);
@@ -27,7 +29,7 @@ const list = files.map(f => ({
   file: `${DIR}/${f}`,
   name: f.split("/").at(-1).replace(/\.[^.]+$/, ""),
   start: 2.9,  // 默认拉包起点（秒），可在此按视频单独修改
-  end: 3.55,   // 默认拉包终点（秒），终点后自动播放
+  end: pullEnd[f.split("/")[0]] ?? 4.65, // 拉到底后自动播放
 }));
 
 writeFileSync("videos.js", "window.AK_VIDEOS = " + JSON.stringify(list, null, 2) + ";\n");
