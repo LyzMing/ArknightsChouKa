@@ -101,17 +101,58 @@
   #bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 0%;
     background: var(--accent); z-index: 4; }
 
-  #ended { position: absolute; inset: 0; z-index: 6; display: none;
-    align-items: flex-end; justify-content: center; padding-bottom: 9%;
-    background: linear-gradient(transparent 55%, rgba(0,0,0,.55)); }
-  #stage.ended #ended { display: flex; }
-  #ended .row { display: flex; gap: 16px; }
-  #ended button { background: rgba(12,13,15,.8); border: 1px solid var(--line);
-    color: var(--txt); padding: 12px 30px; font-size: 14px; letter-spacing: 4px;
-    text-indent: 4px; cursor: pointer; transition: border-color .15s, color .15s; }
-  #ended button:hover { border-color: var(--accent); color: var(--accent); }
-  #ended button.primary { border-color: var(--accent); color: var(--accent); }
-  #ended button.primary:hover { background: var(--accent); color: #000; }
+  /* ---------- 抽卡结果展示卡 ---------- */
+  #resultCard { position: absolute; inset: 0; z-index: 9; display: none;
+    background: #050506; cursor: pointer; user-select: none; overflow: hidden; }
+  #stage.result #resultCard { display: block; }
+  #resultCard .rcBg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  #resultCard.play .rcBg { animation: rcFade .3s ease-out; }
+  #rcLogo { position: absolute; left: 19%; top: 22.5%; height: 37%; opacity: .96; }
+  #resultCard.play #rcLogo { animation: rcFade .5s ease-out .15s backwards; }
+  #rcPrize { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); }
+  #rcPrize.standee { max-height: 85%; max-width: 46%; object-fit: contain;
+    filter: drop-shadow(0 10px 36px rgba(0,0,0,.65)); }
+  /* 横版透明图（表情包类）悬停在名字区上方，避免压住星星和文字 */
+  #rcPrize.sticker { max-height: 34%; max-width: 54%; object-fit: contain; top: 22%; bottom: auto;
+    filter: drop-shadow(0 10px 30px rgba(0,0,0,.6)); }
+  #rcPrize.poster { max-height: 52%; max-width: 38%; object-fit: contain; top: 5%; bottom: auto;
+    border: 2px solid rgba(255,255,255,.85); background: #000;
+    box-shadow: 0 14px 60px rgba(0,0,0,.7); }
+  #resultCard.play #rcPrize { animation: rcPrizeIn .5s cubic-bezier(.2,.7,.3,1) backwards; }
+  #rcStars { position: absolute; left: 52%; top: 60.4%; transform: translateX(-50%); display: flex; }
+  .rcStar { width: 5.5vw; margin: 0 -.18vw; opacity: 0; transform: scale(1.9); }
+  #resultCard.play .rcStar { animation: rcStarPop .3s cubic-bezier(.3,1.4,.5,1) forwards; }
+  /* 名字区：左侧职业信息竖排 + 右侧奖品名，整体按参考图左对齐 */
+  #rcNameBlock { position: absolute; left: 30.7%; top: 68%; display: flex;
+    align-items: flex-end; gap: 1.4vw; white-space: nowrap; }
+  #resultCard.play #rcNameBlock { animation: rcRise .45s ease-out .6s backwards; }
+  #rcClassCol { display: flex; flex-direction: column; align-items: flex-end; }
+  #rcClassEn { font-family: "AKNovecento", "Segoe UI", sans-serif; font-size: .98vw;
+    letter-spacing: .3em; color: #1d1d1f; line-height: 1; margin-bottom: .35vw; }
+  #rcClassRow { display: flex; align-items: stretch; gap: .4vw; }
+  #rcClassCn { font-family: "AKSerifHeavy", "Microsoft YaHei", serif; font-size: 4vw;
+    color: #141414; line-height: .98; text-shadow: 0 0 10px rgba(255,255,255,.3); }
+  #rcClassBox { width: 4.4vw; height: 4.4vw; background: #000; overflow: hidden; flex: none;
+    box-shadow: 0 4px 18px rgba(0,0,0,.55); }
+  #rcClassBox img { width: 100%; height: 100%; object-fit: cover; object-position: 100% 50%; }
+  #rcNew { width: 7.4vw; margin: .5vw 0 0 .3vw; }
+  #rcNames { display: flex; flex-direction: column; }
+  #rcNameCn { font-family: "AKSerifHeavy", "Microsoft YaHei", serif; font-size: 5.6vw;
+    color: #fff; line-height: 1; text-shadow: 0 3px 22px rgba(0,0,0,.75); }
+  #rcNameEn { font-family: "AKNovecento", "Segoe UI", sans-serif; font-size: 2vw;
+    letter-spacing: .1em; color: #fff; margin-top: .4vw; text-shadow: 0 2px 12px rgba(0,0,0,.7); }
+  #rcVoucher { position: absolute; right: 1.5%; top: 46%; }
+  #rcVoucher img { height: 16vh; filter: drop-shadow(0 4px 14px rgba(0,0,0,.6)); }
+  #resultCard.play #rcVoucher { animation: rcFade .4s ease-out .85s backwards; }
+  #rcHint { position: absolute; left: 0; right: 0; bottom: 4.5%; text-align: center;
+    color: rgba(255,255,255,.5); font-family: "AKSansN", "Microsoft YaHei", sans-serif;
+    font-size: .95vw; letter-spacing: .55em; text-indent: .55em; opacity: 0; }
+  #resultCard.play #rcHint { animation: rcHintIn .6s ease-out 1.5s forwards; }
+  @keyframes rcFade { from { opacity: 0; } }
+  @keyframes rcPrizeIn { from { opacity: 0; transform: translateX(-50%) translateY(2.5%) scale(.985); } }
+  @keyframes rcStarPop { to { opacity: 1; transform: scale(1); } }
+  @keyframes rcRise { from { opacity: 0; transform: translateY(1.1vw); } }
+  @keyframes rcHintIn { to { opacity: 1; } }
 
   /* ---------- 校准面板 ---------- */
   #calib { position: fixed; inset: 0; z-index: 20; display: none;
@@ -219,11 +260,28 @@
   <button class="stageBtn" id="skipBtn">跳过 ▸</button>
   <div id="hint"><span class="arrow">◀</span><div class="txt">从 右 侧 拉 链 头 按 住 向 左 拖 动</div></div>
   <div id="bar"></div>
-  <div id="ended"><div class="row">
-    <button class="primary" id="againBtn">再抽一次</button>
-    <button id="luckyBtn">换个手气</button>
-    <button id="toListBtn">返回列表</button>
-  </div></div>
+  <div id="resultCard">
+    <img class="rcBg" alt="">
+    <img id="rcLogo" alt="">
+    <img id="rcPrize" alt="">
+    <div id="rcStars"></div>
+    <div id="rcNameBlock">
+      <div id="rcClassCol">
+        <div id="rcClassEn">VANGUARD</div>
+        <div id="rcClassRow">
+          <span id="rcClassCn">先锋</span>
+          <span id="rcClassBox"><img id="rcClassIconImg" alt=""></span>
+        </div>
+        <img id="rcNew" alt="">
+      </div>
+      <div id="rcNames">
+        <div id="rcNameCn"></div>
+        <div id="rcNameEn"></div>
+      </div>
+    </div>
+    <div id="rcVoucher"><img id="rcVoucherImg" alt="首次获得 +1 高级凭证"></div>
+    <div id="rcHint">点 击 屏 幕 继 续</div>
+  </div>
 </div>
 
 <div id="inventoryPanel">
@@ -281,6 +339,7 @@
 <div id="toast"></div>
 
 <script src="videos.js"></script>
+<script src="prizes.js"></script>
 <script src="pull-frames.js"></script>
 <script src="lottery-system.js"></script>
 <script>
@@ -524,14 +583,18 @@ VIDEOS.forEach((item, i) => {
   card.querySelector(".name").textContent = item.name;
   const tv = card.querySelector("video");
   tv.addEventListener("loadedmetadata", () => { tv.currentTime = 2.9; });
-  card.addEventListener("click", () => openStage(i));
+  card.addEventListener("click", () => {
+    if (ghostClickGuard()) return;
+    openStage(i);
+  });
   card.querySelector(".gear").addEventListener("click", e => {
-    e.stopPropagation(); openStage(i, true);
+    e.stopPropagation(); if (ghostClickGuard()) return; openStage(i, true);
   });
   cardsEl.appendChild(card);
 });
 $("randomBtn").addEventListener("click", () => {
   if (!VIDEOS.length) return toast("没有视频素材");
+  if (ghostClickGuard()) return;
   startLotteryDraw();
 });
 $("resetCalib").addEventListener("click", () => {
@@ -710,6 +773,7 @@ function closeStage() {
   video.pause();
   video.removeAttribute("src"); video.load();
   S.view = "gallery"; setPhase("idle");
+  stage.classList.remove("result");
   S.pendingDraw = null; S.committedDraw = null;
   $("drawBadge").classList.remove("on");
   stage.classList.remove("on");
@@ -743,7 +807,7 @@ function enterPullReady() {
   showPullProgress(0);
 }
 
-video.addEventListener("ended", () => { if (S.phase === "auto") setPhase("ended"); });
+video.addEventListener("ended", () => { if (S.phase === "auto") showResultCard(); });
 video.addEventListener("error", () => { if (S.view === "stage") toast("视频加载失败"); });
 
 /* ---------------- 拖动拉包（右→左，松手停在中途） ---------------- */
@@ -853,13 +917,96 @@ $("muteBtn").addEventListener("click", () => {
   muted = !muted; localStorage.setItem("akpull.muted", muted ? "1" : "0");
   video.muted = muted; setMuteIcon();
 });
-$("againBtn").addEventListener("click", () => {
-  startLotteryDraw();
+/* ---------------- 抽卡结果展示卡 ----------------
+   视频播完后按视频档位从对应奖品池随机抽一个展示；
+   停在画面上，直到点击屏幕才结束本次展示。 */
+const RESULT_ASSETS = window.AK_RESULT_ASSETS || {};
+const RESULT_STARS = { grand: 6, first: 5, second: 4, third: 3 };
+const RESULT_TIER_CN = { grand: "特等奖", first: "一等奖", second: "二等奖", third: "三等奖" };
+{
+  const st = document.createElement("style");
+  st.textContent =
+    (RESULT_ASSETS.fontEn ? `@font-face{font-family:"AKNovecento";src:url("${RESULT_ASSETS.fontEn}") format("woff2");}` : "") +
+    (RESULT_ASSETS.fontSerif ? `@font-face{font-family:"AKSerifHeavy";src:url("${RESULT_ASSETS.fontSerif}") format("woff2");}` : "") +
+    (RESULT_ASSETS.fontSans ? `@font-face{font-family:"AKSansN";src:url("${RESULT_ASSETS.fontSans}") format("woff2");}` : "");
+  document.head.appendChild(st);
+  // 开场就预热字体，避免播完视频才现加载
+  if (document.fonts) {
+    ["16px AKNovecento", "16px AKSerifHeavy"].forEach(f => document.fonts.load(f).catch(() => {}));
+  }
+}
+const rc = {
+  card: $("resultCard"), bg: document.querySelector("#resultCard .rcBg"),
+  logo: $("rcLogo"), prize: $("rcPrize"), stars: $("rcStars"),
+  cn: $("rcNameCn"), en: $("rcNameEn"), newBadge: $("rcNew"),
+  iconImg: $("rcClassIconImg"), voucherImg: $("rcVoucherImg"),
+};
+rc.bg.src = RESULT_ASSETS.bg || "";
+rc.logo.src = RESULT_ASSETS.logo || "";
+rc.newBadge.src = RESULT_ASSETS.newBadge || "";
+rc.iconImg.src = RESULT_ASSETS.vanguard || "";
+rc.voucherImg.src = RESULT_ASSETS.voucher || "";
+
+function prizeIdForVideo(item) {
+  for (const [id, word] of Object.entries(PRIZE_VIDEO_WORD))
+    if (item.name.includes(word) || item.file.includes(word)) return id;
+  return null;
+}
+function pickRandomPrize(pool) {
+  return pool && pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+}
+// 四角+顶边采样：不透明图按海报摆，透明底按立绘摆
+function isOpaqueImage(img) {
+  try {
+    const c = document.createElement("canvas");
+    c.width = 24; c.height = 24;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, 24, 24);
+    for (const [x, y] of [[1, 1], [22, 1], [1, 22], [22, 22], [12, 1]])
+      if (ctx.getImageData(x, y, 1, 1).data[3] < 250) return false;
+    return true;
+  } catch (e) { return false; }
+}
+function showResultCard() {
+  setPhase("ended");
+  stage.classList.add("result");
+  const prizeId = prizeIdForVideo(S.item);
+  const prize = pickRandomPrize((window.AK_PRIZES || {})[prizeId]);
+  rc.stars.innerHTML = Array.from({ length: RESULT_STARS[prizeId] || 3 }, (_, i) =>
+    `<img class="rcStar" src="${RESULT_ASSETS.star || ""}" style="animation-delay:${200 + i * 110}ms" alt="">`).join("");
+  if (prize) {
+    rc.prize.style.display = "";
+    rc.prize.onload = () => {
+      const ratio = rc.prize.naturalWidth / (rc.prize.naturalHeight || 1);
+      // 竖长透明图落地当立绘；方图/横图悬停展示；不透明图当海报
+      const mode = isOpaqueImage(rc.prize) ? "poster"
+        : (ratio < 0.75 ? "standee" : "sticker");
+      rc.prize.classList.remove("poster", "standee", "sticker");
+      rc.prize.classList.add(mode);
+    };
+    rc.prize.onerror = () => { rc.prize.style.display = "none"; };
+    rc.prize.src = prize.file;
+    rc.cn.textContent = prize.cn;
+    rc.en.textContent = prize.en;
+    rc.en.style.display = prize.en ? "" : "none";
+  } else { // 档位还没有奖品素材：只展示档位名占位
+    rc.prize.classList.remove("poster", "standee", "sticker");
+    rc.prize.removeAttribute("src");
+    rc.cn.textContent = RESULT_TIER_CN[prizeId] || "";
+    rc.en.textContent = "";
+  }
+  rc.card.classList.remove("play");
+  void rc.card.offsetWidth; // 重置动画
+  rc.card.classList.add("play");
+}
+/* 关闭结果卡后的短时间冷却：吸收触屏/自动化产生的"幽灵点击"，
+   防止它落到画廊卡片上瞬间误开新一抽。对真人操作无感知。 */
+let resultDismissedAt = 0;
+const ghostClickGuard = () => performance.now() - resultDismissedAt < 600;
+rc.card.addEventListener("click", () => {
+  resultDismissedAt = performance.now();
+  closeStage();
 });
-$("luckyBtn").addEventListener("click", () => {
-  startLotteryDraw();
-});
-$("toListBtn").addEventListener("click", closeStage);
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") {
     if ($("inventoryPanel").classList.contains("on")) $("inventoryPanel").classList.remove("on");

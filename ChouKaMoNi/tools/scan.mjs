@@ -34,3 +34,64 @@ const list = files.map(f => ({
 
 writeFileSync("videos.js", "window.AK_VIDEOS = " + JSON.stringify(list, null, 2) + ";\n");
 console.log(`videos.js 已生成，共 ${list.length} 个视频`);
+
+/* ---------------- 奖品素材：生成 prizes.js ---------------- */
+import { readdirSync as rd } from "fs";
+const PRIZE_DIR = "美术素材库/奖品素材";
+const UI_DIR = "美术素材库/干员展示UI";
+const IMG_EXT = [".png", ".jpg", ".jpeg", ".webp"];
+const TIER_BY_FOLDER = [["特等奖", "grand"], ["一等奖", "first"], ["二等奖", "second"], ["三等奖", "third"]];
+
+function scanImages(dir, parts = []) {
+  return rd(dir, { withFileTypes: true }).flatMap(entry => {
+    const next = [...parts, entry.name];
+    if (entry.isDirectory()) return scanImages(join(dir, entry.name), next);
+    return entry.isFile() && !entry.name.startsWith(".")
+      && IMG_EXT.includes(extname(entry.name).toLowerCase())
+      ? [next.join("/")]
+      : [];
+  });
+}
+
+// 文件名约定：中文名-英文名.png（按第一个半角连字符切分）
+function prizeEntry(relPath) {
+  const base = relPath.split("/").at(-1).replace(/\.[^.]+$/, "");
+  const dash = base.indexOf("-");
+  return {
+    file: `${PRIZE_DIR}/${relPath}`,
+    cn: dash < 0 ? base : base.slice(0, dash),
+    en: dash < 0 ? "" : base.slice(dash + 1).trim(),
+  };
+}
+
+const prizes = {};
+for (const [word, id] of TIER_BY_FOLDER) {
+  prizes[id] = scanImages(PRIZE_DIR)
+    .filter(rel => rel.split("/")[0].startsWith(word))
+    .sort((a, b) => a.localeCompare(b, "zh-CN"))
+    .map(prizeEntry);
+}
+
+// 展示卡 UI 素材按前缀定位（文件名里的打包哈希变了也不怕）
+const uiFiles = rd(UI_DIR).filter(f => !f.startsWith("."));
+const findUi = (prefix, ext) => {
+  const hit = uiFiles.find(f => f.startsWith(prefix) && f.endsWith(ext));
+  return hit ? `${UI_DIR}/${hit}` : null;
+};
+const assets = {
+  bg: findUi("bg-", ".webp"),
+  logo: findUi("Rhodes_Island-", ".webp"),
+  vanguard: findUi("Vanguard-", ".webp"),
+  star: findUi("inline_0", ".svg"),
+  newBadge: findUi("inline_1", ".webp"),
+  voucher: findUi("seniorVoucherIcon-", ".webp"),
+  fontEn: findUi("Novecento", ".woff2"),
+  fontSans: findUi("SourceHanSansSC", ".woff2"),
+  fontSerif: findUi("SourceHanSerifCN", ".woff2"),
+};
+
+writeFileSync("prizes.js",
+  "window.AK_PRIZES = " + JSON.stringify(prizes, null, 2) + ";\n" +
+  "window.AK_RESULT_ASSETS = " + JSON.stringify(assets, null, 2) + ";\n");
+console.log(`prizes.js 已生成：` +
+  TIER_BY_FOLDER.map(([w, id]) => `${id}=${prizes[id].length}`).join(" "));
