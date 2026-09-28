@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>生成 60 FPS 拉包帧</title>
+<style>
+  :root { color-scheme: dark; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; }
+  body { margin: 0; background: #0c0d0f; color: #e8e9eb; }
+  main { width: min(860px, calc(100% - 40px)); margin: 36px auto; }
+  h1 { font-size: 24px; letter-spacing: 3px; }
+  .tip { color: #9ca1ab; line-height: 1.7; }
+  button { margin: 14px 0 20px; padding: 10px 22px; border: 1px solid #ffcf5c;
+    color: #ffcf5c; background: transparent; cursor: pointer; font: inherit; }
+  button:disabled { opacity: .45; cursor: wait; }
+  #status { margin: 10px 0; color: #ffcf5c; }
+  progress { width: 100%; height: 18px; }
+  #log { margin-top: 18px; padding: 14px; min-height: 180px; background: #16181c;
+    border: 1px solid #2a2d33; white-space: pre-wrap; line-height: 1.55; font: 13px Consolas, monospace; }
+  video, canvas { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>生成 60 FPS 拉包帧</h1>
+  <p class="tip">逐帧解码每段视频的拉链区间，并保存为 WebP。提取范围会在当前校准起止点两侧各预留 0.4 秒，因此小范围重新校准无需再次生成。</p>
+  <button id="start">开始生成</button>
+  <div id="status">等待开始</div>
+  <progress id="progress" max="1" value="0"></progress>
+  <div id="log"></div>
+  <video id="video" muted playsinline preload="auto"></video>
+  <canvas id="canvas"></canvas>
+</main>
+<script src="../videos.js"></script>
+<script>
+"use strict";
+const FPS = 60;
+const PAD = 0.4;
+const MAX_WIDTH = 960;
+const QUALITY = 0.84;
+const $ = id => document.getElementById(id);
+const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d", { alpha: false });
+const manifest = { version: 1, fps: FPS, generatedAt: "", items: {} };
+let running = false;
+
+function line(message) {
+  $("log").textContent += message + "\n";
+  $("log").scrollTop = $("log").scrollHeight;
+}
+function once(target, event) {
+  return new Promise((resolve, reject) => {
+    const ok = () => { cleanup(); resolve(); };
+    const bad = () => { cleanup(); reject(new Error(`${event} failed`)); };
+    const cleanup = () => {
+      target.removeEventListener(event, ok);
+      target.removeEventListener("error", bad);
+    };
+    target.addEventListener(event, ok, { once: true });
+    target.addEventListener("error", bad, { once: true });
+  });
+}
+async function seekTo(time) {
+  if (Math.abs(video.currentTime - time) > 0.0005) {
+    const done = once(video, "seeked");
+    video.currentTime = time;
+    await done;
+  }
+  if (video.requestVideoFrameCallback) {
+    await Promise.race([
+      new Promise(resolve => video.requestVideoFrameCallback(resolve)),
+      new Promise(resolve => setTimeout(resolve, 80)),
+    ]);
+  }
+}
+function canvasBlob() {
+  return new Promise((resolve, reject) => canvas.toBlob(
+    blob => blob ? resolve(blob) : reject(new Error("WebP 编码失败")), "image/webp", QUALITY));
+}
+async function postJson(path, data) {
+  const response = await fetch(path, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
+  });
+  if (!response.ok) throw new Error(`${path} 写入失败`);
+}
+function baseName(path) { return path.split("/").pop(); }
+function tierOf(item) {
+  const parts = item.file.split("/");
+  return parts[parts.length - 2].replace(/[^\p{L}\p{N}_-]/gu, "_");
+}
+async function extractItem(item, calibration, completedBefore, totalFrames) {
+  video.src = "../" + item.file;
+  video.load();
+  await once(video, "loadedmetadata");
+
+  const start = calibration?.start ?? item.start;
+  const end = calibration?.end ?? item.end;
+  const origin = Math.max(0, start - PAD);
+  const cacheEnd = Math.min(video.duration, end + PAD);
+  const count = Math.floor((cacheEnd - origin) * FPS + 0.0001) + 1;
+  const scale = Math.min(1, MAX_WIDTH / video.videoWidth);
+  canvas.width = Math.round(video.videoWidth * scale);
+  canvas.height = Math.round(video.videoHeight * scale);
+  const folder = tierOf(item);
+
+  await postJson("../api/frame-reset", { folder });
+  line(`${item.name}: ${origin.toFixed(3)}s–${cacheEnd.toFixed(3)}s，${count} 帧，${canvas.width}×${canvas.height}`);
+
+  for (let index = 0; index < count; index++) {
+    const time = Math.min(cacheEnd, origin + index / FPS);
+    await seekTo(time);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await canvasBlob();
+    const name = `frame_${String(index).padStart(4, "0")}.webp`;
+    const response = await fetch(`../api/frame?folder=${encodeURIComponent(folder)}&name=${name}`,
+      { method: "POST", headers: { "Content-Type": "image/webp" }, body: blob });
+    if (!response.ok) throw new Error(`${item.name} 第 ${index + 1} 帧写入失败`);
+    $("progress").value = (completedBefore + index + 1) / totalFrames;
+    $("status").textContent = `${item.name} · ${index + 1}/${count}`;
+  }
+
+  manifest.items[baseName(item.file)] = {
+    origin, end: cacheEnd, fps: FPS, count,
+    width: canvas.width, height: canvas.height,
+    path: `美术素材库/抽卡帧/${folder}/frame_{index}.webp`,
+  };
+  return count;
+}
+async function run() {
+  if (running) return;
+  running = true;
+  $("start").disabled = true;
+  $("log").textContent = "";
+  try {
+    const calibrationResponse = await fetch("../api/calibrations", { cache: "no-store" });
+    const calibrations = calibrationResponse.ok ? await calibrationResponse.json() : {};
+    const estimates = [];
+    for (const item of window.AK_VIDEOS || []) {
+      const c = calibrations[baseName(item.file)];
+      estimates.push(Math.floor((((c?.end ?? item.end) - (c?.start ?? item.start)) + PAD * 2) * FPS) + 1);
+    }
+    const totalFrames = estimates.reduce((a, b) => a + b, 0);
+    let completed = 0;
+    for (let i = 0; i < (window.AK_VIDEOS || []).length; i++) {
+      const item = window.AK_VIDEOS[i];
+      completed += await extractItem(item, calibrations[baseName(item.file)], completed, totalFrames);
+    }
+    manifest.generatedAt = new Date().toISOString();
+    await postJson("../api/frame-manifest", manifest);
+    $("progress").value = 1;
+    $("status").textContent = "全部完成，可以关闭本页";
+    line("完成：pull-frames.js 已更新。");
+    document.title = "完成 · 60 FPS 拉包帧";
+  } catch (error) {
+    console.error(error);
+    $("status").textContent = "生成失败";
+    line("错误：" + (error?.message || error));
+    document.title = "失败 · 60 FPS 拉包帧";
+  } finally {
+    running = false;
+    $("start").disabled = false;
+  }
+}
+$("start").addEventListener("click", run);
+if (new URLSearchParams(location.search).has("autorun")) run();
+</script>
+</body>
+</html>

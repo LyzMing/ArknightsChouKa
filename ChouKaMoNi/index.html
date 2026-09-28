@@ -51,7 +51,17 @@
   #stage.on { display: block; }
   #stage.ready, #stage.drag { cursor: grab; }
   #stage.drag { cursor: grabbing; }
-  #video { width: 100%; height: 100%; object-fit: contain; display: block; }
+  #video, #pullCanvas { position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; display: block; }
+  #pullCanvas { display: none; pointer-events: none; }
+  #stage.frameMode #video { opacity: 0; }
+  #stage.frameMode #pullCanvas { display: block; }
+  #stage.calibrating #video { opacity: 1; }
+  #stage.calibrating #pullCanvas { display: none; }
+  #frameLoad { position: absolute; inset: 0; z-index: 7; display: none; align-items: center;
+    justify-content: center; background: rgba(0,0,0,.58); color: #e8e9eb; font-size: 14px;
+    letter-spacing: 3px; pointer-events: none; }
+  #stage.frameLoading.ready #frameLoad { display: flex; }
 
   .stageBtn { position: absolute; z-index: 5; background: rgba(10,10,12,.6);
     border: 1px solid rgba(255,255,255,.18); color: #cfd2d8; cursor: pointer;
@@ -137,6 +147,8 @@
 
 <div id="stage">
   <video id="video" preload="auto" playsinline></video>
+  <canvas id="pullCanvas"></canvas>
+  <div id="frameLoad">正在准备拉链画面…</div>
   <button class="stageBtn" id="backBtn">← 返回</button>
   <div id="rightCtl">
     <button class="stageBtn" id="muteBtn">🔊</button>
@@ -182,11 +194,13 @@
 <div id="toast"></div>
 
 <script src="videos.js"></script>
+<script src="pull-frames.js"></script>
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const VIDEOS = window.AK_VIDEOS || [];
+const PULL_FRAMES = window.AK_PULL_FRAMES?.items || {};
 const DEFAULT_PULL = { start: 2.9, end: 4.65 };
 
 /* 按文件名猜稀有度色，仅用于卡片装饰 */
@@ -307,11 +321,13 @@ $("exportCalib").addEventListener("click", () => {
    intro  片头自动播(0→start)   ready  拉链停住等待拖动(可停在中途)
    drag   按住拖动中            commit 补间冲向终点
    auto   档案弹出后自动播(不可控)  ended 播完出按钮 */
-const stage = $("stage"), video = $("video"), bar = $("bar");
+const stage = $("stage"), video = $("video"), bar = $("bar"), pullCanvas = $("pullCanvas");
+const pullCtx = pullCanvas.getContext("2d", { alpha: false });
 const S = { view: "gallery", phase: "idle", item: null, start: 2.9, end: 4.65 };
 const drag = { lastX: 0, p: 0, pointerId: null };
 let rafId = 0;
 let seekRafId = 0;
+const frameState = { token: 0, meta: null, images: [], ready: false, loaded: 0, p: 0 };
 
 function pToTime(p) { return S.start + p * (S.end - S.start); }
 function pullPx() {
@@ -323,6 +339,93 @@ function pullPx() {
 function cancelPullSeek() {
   if (seekRafId) cancelAnimationFrame(seekRafId);
   seekRafId = 0;
+}
+function frameMetaFor(item) { return PULL_FRAMES[baseName(item.file)] || null; }
+function frameUrl(meta, index) {
+  return meta.path.replace("{index}", String(index).padStart(4, "0"));
+}
+function clearPullFrames() {
+  frameState.token++;
+  frameState.meta = null;
+  frameState.images = [];
+  frameState.ready = false;
+  frameState.loaded = 0;
+  stage.classList.remove("frameMode", "frameLoading");
+}
+function loadFrameImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = url;
+  });
+}
+async function preparePullFrames(item) {
+  clearPullFrames();
+  const meta = frameMetaFor(item);
+  if (!meta || meta.fps !== 60 || !meta.count) return;
+  if (S.start < meta.origin || S.end > meta.end) {
+    toast("当前校准超出已解码帧范围，本次使用视频模式");
+    return;
+  }
+  const token = frameState.token;
+  frameState.meta = meta;
+  frameState.images = new Array(meta.count);
+  stage.classList.add("frameLoading");
+  let next = 0;
+  async function worker() {
+    while (next < meta.count && token === frameState.token) {
+      const index = next++;
+      try {
+        frameState.images[index] = await loadFrameImage(frameUrl(meta, index));
+        frameState.loaded++;
+        $("frameLoad").textContent = `正在准备拉链画面 ${frameState.loaded}/${meta.count}`;
+      } catch (error) {
+        throw new Error(`第 ${index + 1} 帧加载失败`);
+      }
+    }
+  }
+  try {
+    await Promise.all(Array.from({ length: Math.min(12, meta.count) }, worker));
+    if (token !== frameState.token) return;
+    frameState.ready = true;
+    stage.classList.remove("frameLoading");
+    $("frameLoad").textContent = "正在准备拉链画面…";
+    if (S.view === "stage" && S.phase === "ready") showPullProgress(drag.p);
+  } catch (error) {
+    if (token !== frameState.token) return;
+    stage.classList.remove("frameLoading");
+    frameState.meta = null;
+    frameState.images = [];
+    toast("帧缓存不可用，已切回视频模式");
+  }
+}
+function frameIndexAtProgress(p) {
+  const meta = frameState.meta;
+  if (!meta) return -1;
+  const time = pToTime(clamp(p, 0, 1));
+  if (time < meta.origin - 0.001 || time > meta.end + 0.001) return -1;
+  return clamp(Math.round((time - meta.origin) * meta.fps), 0, meta.count - 1);
+}
+function showPullProgress(p) {
+  frameState.p = clamp(p, 0, 1);
+  if (frameState.ready) {
+    const index = frameIndexAtProgress(frameState.p);
+    const image = index >= 0 ? frameState.images[index] : null;
+    if (image) {
+      if (pullCanvas.width !== image.naturalWidth || pullCanvas.height !== image.naturalHeight) {
+        pullCanvas.width = image.naturalWidth;
+        pullCanvas.height = image.naturalHeight;
+      }
+      pullCtx.drawImage(image, 0, 0, pullCanvas.width, pullCanvas.height);
+      stage.classList.add("frameMode");
+      bar.style.width = frameState.p * 100 + "%";
+      return true;
+    }
+  }
+  stage.classList.remove("frameMode");
+  return false;
 }
 function queuePullSeek() {
   if (seekRafId) return;
@@ -355,12 +458,14 @@ function openStage(i, withCalib) {
   video.muted = muted;
   video.currentTime = 0;
   setPhase("intro");
+  preparePullFrames(S.item);
   playSafe();
   if (!rafId) rafId = requestAnimationFrame(loop); // 驱动片头切换与进度条
   if (withCalib) setTimeout(() => openCalib(), 60);
 }
 function closeStage() {
   cancelPullSeek();
+  clearPullFrames();
   video.pause();
   video.removeAttribute("src"); video.load();
   S.view = "gallery"; setPhase("idle");
@@ -380,11 +485,19 @@ setMuteIcon();
 function loop() {
   if (S.view !== "stage") { rafId = 0; return; }
   if (S.phase === "intro" && video.currentTime >= S.start - 0.02) {
-    video.pause(); video.currentTime = S.start; setPhase("ready");
+    enterPullReady();
   }
   if (S.phase === "auto" && video.duration)
     bar.style.width = (video.currentTime / video.duration * 100) + "%";
   rafId = requestAnimationFrame(loop);
+}
+
+function enterPullReady() {
+  video.pause();
+  video.currentTime = S.start;
+  drag.p = 0;
+  setPhase("ready");
+  showPullProgress(0);
 }
 
 video.addEventListener("ended", () => { if (S.phase === "auto") setPhase("ended"); });
@@ -405,7 +518,7 @@ stage.addEventListener("pointermove", e => {
   drag.lastX = e.clientX;
   bar.style.width = drag.p * 100 + "%";
   if (drag.p >= 1) commit();
-  else queuePullSeek();
+  else if (!showPullProgress(drag.p)) queuePullSeek();
 });
 stage.addEventListener("pointerup", e => {
   if (S.phase !== "drag" || e.pointerId !== drag.pointerId) return;
@@ -435,7 +548,7 @@ const easeInQuad = k => k * k;
 /* 松手：停在当前进度，已开始过就不再显示提示 */
 function park() {
   cancelPullSeek();
-  video.currentTime = pToTime(drag.p);
+  if (!showPullProgress(drag.p)) video.currentTime = pToTime(drag.p);
   stage.classList.toggle("started", drag.p > 0.02);
   setPhase("ready");
 }
@@ -445,14 +558,39 @@ function commit() {
   setPhase("commit");
   const p0 = clamp(drag.p, 0, 1);
   tween(p0, 1, 130 + 200 * (1 - p0), easeInQuad,
-    v => { video.currentTime = pToTime(v); bar.style.width = v * 100 + "%"; },
-    () => { video.currentTime = S.end; setPhase("auto"); playSafe(); });
+    v => {
+      if (!showPullProgress(v)) video.currentTime = pToTime(v);
+      bar.style.width = v * 100 + "%";
+    }, finishPullCommit);
+}
+function finishPullCommit() {
+  const usedFrames = stage.classList.contains("frameMode");
+  if (!usedFrames) {
+    video.currentTime = S.end;
+    setPhase("auto");
+    playSafe();
+    return;
+  }
+  let resumed = false;
+  const resume = () => {
+    if (resumed || S.view !== "stage") return;
+    resumed = true;
+    setPhase("auto");
+    playSafe();
+    const revealVideo = () => stage.classList.remove("frameMode");
+    if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(revealVideo);
+    else setTimeout(revealVideo, 80);
+    setTimeout(revealVideo, 240);
+  };
+  video.addEventListener("seeked", resume, { once: true });
+  video.currentTime = S.end;
+  setTimeout(resume, 300);
 }
 
 /* ---------------- 舞台按钮 ---------------- */
 $("backBtn").addEventListener("click", closeStage);
 $("skipBtn").addEventListener("click", () => {
-  if (S.phase === "intro") { video.pause(); video.currentTime = S.start; setPhase("ready"); }
+  if (S.phase === "intro") enterPullReady();
 });
 $("muteBtn").addEventListener("click", () => {
   muted = !muted; localStorage.setItem("akpull.muted", muted ? "1" : "0");
@@ -460,6 +598,7 @@ $("muteBtn").addEventListener("click", () => {
 });
 $("againBtn").addEventListener("click", () => {
   drag.p = 0;
+  stage.classList.remove("frameMode");
   stage.classList.remove("started");
   video.currentTime = 0; setPhase("intro"); playSafe();
 });
@@ -483,11 +622,17 @@ let calibTesting = false;
 function openCalib() {
   if (S.view !== "stage") return;
   calibTesting = false;
+  stage.classList.add("calibrating");
   calib.classList.add("on");
   $("calibTitle").textContent = "校准 · " + S.item.name;
   refreshCalibUI();
 }
-function closeCalib() { calib.classList.remove("on"); video.pause(); calibTesting = false; }
+function closeCalib() {
+  calib.classList.remove("on");
+  stage.classList.remove("calibrating");
+  video.pause(); calibTesting = false;
+  if (S.phase === "ready") showPullProgress(drag.p);
+}
 function refreshCalibUI() {
   const d = video.duration || 1;
   $("vStart").textContent = S.start.toFixed(2) + "s";
@@ -541,6 +686,14 @@ function saveCalib() {
   CAL[baseName(S.item.file)] = { start: S.start, end: S.end };
   if (canShare) pushCalib();
   else localStorage.setItem(calibKey(S.item.file), JSON.stringify({ start: S.start, end: S.end }));
+  if (frameState.meta) {
+    const outside = S.start < frameState.meta.origin || S.end > frameState.meta.end;
+    frameState.ready = !outside && frameState.loaded === frameState.meta.count;
+    if (outside) {
+      stage.classList.remove("frameMode");
+      toast("校准超出已解码帧范围，请重新生成拉包帧");
+    }
+  }
 }
 
 /* 校准区域手柄拖动 */
