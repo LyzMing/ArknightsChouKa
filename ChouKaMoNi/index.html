@@ -42,6 +42,19 @@
     padding: 12px 46px; font-size: 15px; letter-spacing: 6px; text-indent: 6px; cursor: pointer;
     transition: background .15s, color .15s; }
   #randomBtn:hover { background: var(--accent); color: #000; }
+  .drawActions { display: flex; align-items: center; gap: 12px; }
+  #inventoryBtn { background: none; border: 1px solid var(--line); color: var(--txt);
+    padding: 12px 20px; font-size: 13px; letter-spacing: 2px; cursor: pointer; }
+  #inventoryBtn:hover { border-color: var(--accent); color: var(--accent); }
+  #inventoryStrip { display: grid; grid-template-columns: repeat(4, minmax(118px, 1fr));
+    width: min(760px, 92vw); gap: 8px; }
+  .stockChip { position: relative; overflow: hidden; background: #121419; border: 1px solid var(--line);
+    padding: 9px 12px 10px; min-width: 0; }
+  .stockChip .stockFill { position: absolute; inset: auto 0 0; height: 3px;
+    background: var(--chip, var(--accent)); opacity: .8; transform-origin: left; }
+  .stockChip .stockTop { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+  .stockChip .stockCount { color: var(--chip, var(--accent)); font-variant-numeric: tabular-nums; }
+  .stockChip .stockRate { color: var(--dim); font-size: 11px; margin-top: 4px; }
   .footHint { color: #565a63; font-size: 12px; letter-spacing: 1px; }
   .footHint button { background: none; border: none; color: #6d7280; cursor: pointer;
     text-decoration: underline; font-size: 12px; }
@@ -126,6 +139,50 @@
   #calib .close { margin-left: auto; }
   #calib button.danger:hover { border-color: #e05555; color: #e05555; }
 
+  /* ---------- 库存与概率 ---------- */
+  #inventoryPanel { position: fixed; inset: 0; z-index: 30; display: none; align-items: center;
+    justify-content: center; background: rgba(0,0,0,.72); padding: 20px; }
+  #inventoryPanel.on { display: flex; }
+  #inventoryPanel .box { width: min(960px, 96vw); max-height: 92vh; overflow: auto;
+    background: var(--panel); border: 1px solid var(--line); padding: 24px 26px; }
+  #inventoryPanel h2 { font-size: 19px; letter-spacing: 3px; }
+  .inventoryLead { color: var(--dim); font-size: 12.5px; line-height: 1.7; margin: 8px 0 18px; }
+  .modeSwitch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; }
+  .modeOption { display: block; border: 1px solid var(--line); padding: 12px 14px; cursor: pointer; }
+  .modeOption:has(input:checked) { border-color: var(--accent); background: rgba(255,207,92,.07); }
+  .modeOption input { accent-color: var(--accent); margin-right: 8px; }
+  .modeOption b { font-size: 14px; }
+  .modeOption small { display: block; color: var(--dim); margin: 5px 0 0 24px; line-height: 1.45; }
+  .inventoryTable { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .inventoryTable th { color: var(--dim); font-weight: 400; text-align: left;
+    border-bottom: 1px solid var(--line); padding: 8px 6px; white-space: nowrap; }
+  .inventoryTable td { border-bottom: 1px solid #22252b; padding: 10px 6px; }
+  .inventoryTable input[type=number] { width: 88px; background: #0e0f12; color: var(--txt);
+    border: 1px solid var(--line); padding: 7px 8px; font: inherit; font-variant-numeric: tabular-nums; }
+  .inventoryTable input:disabled { opacity: .35; }
+  .prizeName { font-weight: 600; white-space: nowrap; }
+  .actualRate { color: var(--accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .miniBar { width: 90px; height: 5px; background: #0a0b0d; margin-top: 5px; }
+  .miniBar span { display: block; height: 100%; background: var(--accent); }
+  .inventoryTotal { display: flex; justify-content: space-between; gap: 16px; color: var(--dim);
+    font-size: 12.5px; margin-top: 14px; }
+  .inventoryTotal b { color: var(--txt); }
+  .inventoryButtons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+  .inventoryButtons button { background: none; border: 1px solid var(--line); color: var(--txt);
+    padding: 9px 16px; cursor: pointer; font: inherit; }
+  .inventoryButtons button:hover { border-color: var(--accent); color: var(--accent); }
+  .inventoryButtons .primary { border-color: var(--accent); color: var(--accent); }
+  .inventoryButtons .close { margin-left: auto; }
+  #drawBadge { position: absolute; z-index: 8; left: 50%; top: 7%; transform: translateX(-50%);
+    display: none; background: rgba(12,13,15,.88); border: 1px solid var(--accent);
+    color: var(--accent); padding: 10px 22px; letter-spacing: 3px; font-size: 14px; }
+  #drawBadge.on { display: block; }
+  @media (max-width: 680px) {
+    #inventoryStrip { grid-template-columns: repeat(2, 1fr); }
+    .inventoryTable { min-width: 720px; }
+    .modeSwitch { grid-template-columns: 1fr; }
+  }
+
   #toast { position: fixed; left: 50%; bottom: 46px; transform: translateX(-50%);
     background: rgba(20,22,26,.95); border: 1px solid var(--line); color: var(--txt);
     padding: 10px 22px; font-size: 13px; letter-spacing: 1px; z-index: 50;
@@ -139,7 +196,11 @@
   <h1>拉包模拟器</h1>
   <div class="sub">HUMAN RESOURCE PACKAGE</div>
   <div id="cards"></div>
-  <button id="randomBtn">随机一抽</button>
+  <div id="inventoryStrip"></div>
+  <div class="drawActions">
+    <button id="randomBtn">随机一抽</button>
+    <button id="inventoryBtn">库存设置</button>
+  </div>
   <div class="footHint">按住向左拖动拉开拉链 · 档案弹出后自动播放 ·
     <button id="exportCalib">导出校准文件</button> ·
     <button id="resetCalib">重置全部校准</button></div>
@@ -149,6 +210,7 @@
   <video id="video" preload="auto" playsinline></video>
   <canvas id="pullCanvas"></canvas>
   <div id="frameLoad">正在准备拉链画面…</div>
+  <div id="drawBadge"></div>
   <button class="stageBtn" id="backBtn">← 返回</button>
   <div id="rightCtl">
     <button class="stageBtn" id="muteBtn">🔊</button>
@@ -162,6 +224,31 @@
     <button id="luckyBtn">换个手气</button>
     <button id="toListBtn">返回列表</button>
   </div></div>
+</div>
+
+<div id="inventoryPanel">
+  <div class="box">
+    <h2>库存与概率</h2>
+    <div class="inventoryLead">所有设置与抽奖记录立即保存在本机。动态模式会随库存减少自动改变概率；固定模式会钉死填写的比例，某档耗尽后只在仍有库存的档位间重新归一化。</div>
+    <div class="modeSwitch">
+      <label class="modeOption"><input type="radio" name="probMode" value="dynamic"><b>动态库存</b><small>实际概率 = 剩余库存 × 权重，适合自然清空奖品。</small></label>
+      <label class="modeOption"><input type="radio" name="probMode" value="fixed"><b>固定概率（钉死）</b><small>按填写百分比抽取；四档合计必须等于 100%。</small></label>
+    </div>
+    <div style="overflow:auto">
+      <table class="inventoryTable">
+        <thead><tr><th>奖项</th><th>剩余库存</th><th>总库存</th><th>动态权重</th><th>固定概率</th><th>当前实际概率</th></tr></thead>
+        <tbody id="inventoryRows"></tbody>
+      </table>
+    </div>
+    <div class="inventoryTotal"><span>剩余奖品 <b id="stockRemaining">0</b> / <b id="stockTotal">0</b></span><span>已完成抽取 <b id="drawCount">0</b> 次</span></div>
+    <div class="inventoryButtons">
+      <button id="exportLottery">导出配置与记录</button>
+      <button id="resetInventory">按总库存补满</button>
+      <button id="resetLottery">恢复初始配置</button>
+      <button class="close" id="closeInventory">取消</button>
+      <button class="primary" id="saveInventory">保存设置</button>
+    </div>
+  </div>
 </div>
 
 <div id="calib">
@@ -195,6 +282,7 @@
 
 <script src="videos.js"></script>
 <script src="pull-frames.js"></script>
+<script src="lottery-system.js"></script>
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
@@ -274,6 +362,155 @@ function updateCalibModeUI() {
 }
 initCalib();
 
+/* ---------------- 库存与概率 ---------------- */
+const LOTTERY = window.AKLottery.create();
+window.AK_LOTTERY_SYSTEM = LOTTERY; // 奖品展示页可直接读取/监听抽中事件
+const PRIZE_COLORS = { grand: "#ff8a26", first: "#ffd45c", second: "#a58cff", third: "#dfe3e8" };
+const PRIZE_VIDEO_WORD = { grand: "六星", first: "五星", second: "四星", third: "白光" };
+
+function videoIndexForPrize(prizeId) {
+  const word = PRIZE_VIDEO_WORD[prizeId];
+  return VIDEOS.findIndex(item => item.name.includes(word) || item.file.includes(word));
+}
+
+function renderInventorySummary() {
+  const state = LOTTERY.snapshot();
+  const rates = Object.fromEntries(LOTTERY.probabilities().map(item => [item.id, item.probability]));
+  const strip = $("inventoryStrip");
+  strip.innerHTML = "";
+  state.prizes.forEach(prize => {
+    const chip = document.createElement("div");
+    chip.className = "stockChip";
+    chip.style.setProperty("--chip", PRIZE_COLORS[prize.id]);
+    const ratio = prize.total ? prize.remaining / prize.total : 0;
+    chip.innerHTML = `<div class="stockTop"><span>${prize.name}</span><span class="stockCount">${prize.remaining}/${prize.total}</span></div>` +
+      `<div class="stockRate">当前 ${(rates[prize.id] * 100).toFixed(2)}%</div><div class="stockFill" style="transform:scaleX(${ratio})"></div>`;
+    strip.appendChild(chip);
+  });
+  $("randomBtn").disabled = !state.prizes.some(prize => prize.remaining > 0);
+}
+
+function openInventoryPanel() {
+  const state = LOTTERY.snapshot();
+  document.querySelector(`input[name=probMode][value=${state.mode}]`).checked = true;
+  const rows = $("inventoryRows");
+  rows.innerHTML = "";
+  state.prizes.forEach(prize => {
+    const row = document.createElement("tr");
+    row.dataset.id = prize.id;
+    row.innerHTML = `<td><span class="prizeName" style="color:${PRIZE_COLORS[prize.id]}">${prize.name}</span><div class="miniBar"><span style="width:${prize.total ? prize.remaining / prize.total * 100 : 0}%"></span></div></td>` +
+      `<td><input class="remainingInput" type="number" min="0" step="1" value="${prize.remaining}"></td>` +
+      `<td><input class="totalInput" type="number" min="0" step="1" value="${prize.total}"></td>` +
+      `<td><input class="weightInput" type="number" min="0" step="0.1" value="${prize.weight}"></td>` +
+      `<td><input class="fixedInput" type="number" min="0" max="100" step="0.01" value="${(prize.fixedRate * 100).toFixed(2)}"> %</td>` +
+      `<td class="actualRate">0.00%</td>`;
+    rows.appendChild(row);
+  });
+  $("drawCount").textContent = state.history.length;
+  refreshInventoryForm();
+  $("inventoryPanel").classList.add("on");
+}
+
+function readInventoryForm() {
+  const mode = document.querySelector("input[name=probMode]:checked")?.value || "dynamic";
+  const prizes = [...document.querySelectorAll("#inventoryRows tr")].map(row => ({
+    id: row.dataset.id,
+    remaining: +row.querySelector(".remainingInput").value,
+    total: +row.querySelector(".totalInput").value,
+    weight: +row.querySelector(".weightInput").value,
+    fixedRate: +row.querySelector(".fixedInput").value / 100,
+  }));
+  return { mode, prizes };
+}
+
+function refreshInventoryForm() {
+  const draft = readInventoryForm();
+  const fixed = draft.mode === "fixed";
+  let totalStock = 0, remainingStock = 0;
+  const scores = draft.prizes.map(prize => {
+    const remaining = Math.max(0, Number.isFinite(prize.remaining) ? prize.remaining : 0);
+    const total = Math.max(0, Number.isFinite(prize.total) ? prize.total : 0);
+    totalStock += total; remainingStock += remaining;
+    return remaining <= 0 ? 0 : Math.max(0, fixed ? prize.fixedRate : remaining * prize.weight);
+  });
+  const scoreSum = scores.reduce((sum, value) => sum + value, 0);
+  [...document.querySelectorAll("#inventoryRows tr")].forEach((row, index) => {
+    row.querySelector(".weightInput").disabled = fixed;
+    row.querySelector(".fixedInput").disabled = !fixed;
+    row.querySelector(".actualRate").textContent = `${(scoreSum ? scores[index] / scoreSum * 100 : 0).toFixed(2)}%`;
+    const prize = draft.prizes[index];
+    row.querySelector(".miniBar span").style.width = `${prize.total > 0 ? Math.min(100, prize.remaining / prize.total * 100) : 0}%`;
+  });
+  $("stockRemaining").textContent = remainingStock;
+  $("stockTotal").textContent = totalStock;
+}
+
+function validateInventoryDraft(draft) {
+  for (const prize of draft.prizes) {
+    if (![prize.total, prize.remaining, prize.weight, prize.fixedRate].every(Number.isFinite))
+      return "请把所有配置填写完整";
+    if (prize.total < 0 || prize.remaining < 0 || prize.remaining > prize.total)
+      return "剩余库存必须在 0 和总库存之间";
+    if (!Number.isInteger(prize.total) || !Number.isInteger(prize.remaining))
+      return "库存必须是整数";
+  }
+  if (draft.mode === "fixed") {
+    const sum = draft.prizes.reduce((total, prize) => total + prize.fixedRate, 0);
+    if (Math.abs(sum - 1) > 0.0005) return `固定概率当前合计 ${(sum * 100).toFixed(2)}%，必须为 100%`;
+  }
+  return "";
+}
+
+function downloadText(name, textValue) {
+  const blob = new Blob([textValue], { type: "application/json" });
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: name });
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+function startLotteryDraw() {
+  const plan = LOTTERY.planDraw();
+  if (!plan) return toast("没有可抽取的奖品，请检查库存和概率设置");
+  const index = videoIndexForPrize(plan.prizeId);
+  if (index < 0) return toast(`${plan.prizeName} 没有对应的抽卡视频`);
+  openStage(index, false, plan);
+}
+window.startAKLotteryDraw = startLotteryDraw;
+
+$("inventoryBtn").addEventListener("click", openInventoryPanel);
+$("closeInventory").addEventListener("click", () => $("inventoryPanel").classList.remove("on"));
+$("inventoryPanel").addEventListener("click", e => {
+  if (e.target === $("inventoryPanel")) $("inventoryPanel").classList.remove("on");
+});
+$("inventoryRows").addEventListener("input", refreshInventoryForm);
+document.querySelectorAll("input[name=probMode]").forEach(input => input.addEventListener("change", refreshInventoryForm));
+$("saveInventory").addEventListener("click", () => {
+  const draft = readInventoryForm();
+  const error = validateInventoryDraft(draft);
+  if (error) return toast(error);
+  try {
+    LOTTERY.updateConfig(draft);
+    renderInventorySummary();
+    $("inventoryPanel").classList.remove("on");
+    toast("库存与概率设置已保存");
+  } catch (error) { toast(error.message); }
+});
+$("exportLottery").addEventListener("click", () => {
+  downloadText(`抽奖数据-${new Date().toISOString().slice(0, 10)}.json`, LOTTERY.exportData());
+  toast("已导出配置、库存和抽奖记录");
+});
+$("resetInventory").addEventListener("click", () => {
+  if (!confirm("将所有剩余库存补回当前总库存。继续吗？") || !confirm("再次确认：这会覆盖当前剩余库存。")) return;
+  LOTTERY.resetInventory(); openInventoryPanel(); renderInventorySummary(); toast("库存已补满");
+});
+$("resetLottery").addEventListener("click", () => {
+  if (!confirm("将恢复默认库存并清空全部抽奖记录。继续吗？") || !confirm("再次确认：抽奖记录清空后只能通过已导出的备份找回。")) return;
+  LOTTERY.resetAll(); openInventoryPanel(); renderInventorySummary(); toast("已恢复初始配置");
+});
+window.addEventListener("storage", event => {
+  if (event.key === LOTTERY.storageKey) { LOTTERY.reload(); renderInventorySummary(); }
+});
+renderInventorySummary();
+
 /* ---------------- 选中界面 ---------------- */
 const cardsEl = $("cards");
 VIDEOS.forEach((item, i) => {
@@ -295,7 +532,7 @@ VIDEOS.forEach((item, i) => {
 });
 $("randomBtn").addEventListener("click", () => {
   if (!VIDEOS.length) return toast("没有视频素材");
-  openStage(Math.floor(Math.random() * VIDEOS.length));
+  startLotteryDraw();
 });
 $("resetCalib").addEventListener("click", () => {
   VIDEOS.forEach(v => {
@@ -323,7 +560,8 @@ $("exportCalib").addEventListener("click", () => {
    auto   档案弹出后自动播(不可控)  ended 播完出按钮 */
 const stage = $("stage"), video = $("video"), bar = $("bar"), pullCanvas = $("pullCanvas");
 const pullCtx = pullCanvas.getContext("2d", { alpha: false });
-const S = { view: "gallery", phase: "idle", item: null, start: 2.9, end: 4.65 };
+const S = { view: "gallery", phase: "idle", item: null, start: 2.9, end: 4.65,
+  pendingDraw: null, committedDraw: null };
 const drag = { lastX: 0, p: 0, pointerId: null };
 let rafId = 0;
 let seekRafId = 0;
@@ -443,10 +681,13 @@ function setPhase(p) {
   if (p === "intro" || p === "ended") bar.style.width = "0%";
 }
 
-function openStage(i, withCalib) {
+function openStage(i, withCalib, pendingDraw) {
   cancelPullSeek();
   S.item = VIDEOS[i];
   if (!S.item) return;
+  S.pendingDraw = pendingDraw || null;
+  S.committedDraw = null;
+  $("drawBadge").classList.remove("on");
   const c = loadCalib(S.item);
   S.start = (c ? c.start : S.item.start) || DEFAULT_PULL.start;
   S.end   = (c ? c.end   : S.item.end)   || DEFAULT_PULL.end;
@@ -469,6 +710,8 @@ function closeStage() {
   video.pause();
   video.removeAttribute("src"); video.load();
   S.view = "gallery"; setPhase("idle");
+  S.pendingDraw = null; S.committedDraw = null;
+  $("drawBadge").classList.remove("on");
   stage.classList.remove("on");
   closeCalib();
 }
@@ -555,6 +798,20 @@ function park() {
 function commit() {
   cancelPullSeek();
   drag.pointerId = null;
+  if (S.pendingDraw && !S.committedDraw) {
+    try {
+      S.committedDraw = LOTTERY.commitDraw(S.pendingDraw);
+      const badge = $("drawBadge");
+      badge.textContent = `已抽中 ${S.committedDraw.prizeName} · 剩余 ${S.committedDraw.remainingAfter}`;
+      badge.classList.add("on");
+      renderInventorySummary();
+      window.dispatchEvent(new CustomEvent("ak-lottery-draw-committed", { detail: S.committedDraw }));
+    } catch (error) {
+      toast(error.message || "库存扣减失败，请重新抽取");
+      closeStage();
+      return;
+    }
+  }
   setPhase("commit");
   const p0 = clamp(drag.p, 0, 1);
   tween(p0, 1, 130 + 200 * (1 - p0), easeInQuad,
@@ -597,20 +854,16 @@ $("muteBtn").addEventListener("click", () => {
   video.muted = muted; setMuteIcon();
 });
 $("againBtn").addEventListener("click", () => {
-  drag.p = 0;
-  stage.classList.remove("frameMode");
-  stage.classList.remove("started");
-  video.currentTime = 0; setPhase("intro"); playSafe();
+  startLotteryDraw();
 });
 $("luckyBtn").addEventListener("click", () => {
-  let i = Math.floor(Math.random() * VIDEOS.length);
-  if (VIDEOS.length > 1 && VIDEOS[i] === S.item) i = (i + 1) % VIDEOS.length;
-  openStage(i);
+  startLotteryDraw();
 });
 $("toListBtn").addEventListener("click", closeStage);
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") {
-    if ($("calib").classList.contains("on")) closeCalib();
+    if ($("inventoryPanel").classList.contains("on")) $("inventoryPanel").classList.remove("on");
+    else if ($("calib").classList.contains("on")) closeCalib();
     else if (S.view === "stage") closeStage();
   }
 });
