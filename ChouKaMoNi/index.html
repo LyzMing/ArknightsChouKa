@@ -96,6 +96,7 @@
   #calib.on { display: flex; }
   #calib .box { width: min(600px, 92vw); background: var(--panel); border: 1px solid var(--line); padding: 22px 26px 24px; }
   #calib h2 { font-size: 17px; letter-spacing: 3px; font-weight: 600; }
+  #calib .mode { font-size: 12px; color: var(--dim); margin-top: 6px; }
   #calib .tip { color: var(--dim); font-size: 12.5px; line-height: 1.7; margin: 10px 0 16px; }
   #zoneBar { position: relative; height: 34px; background: #0a0b0d; border: 1px solid var(--line); margin-bottom: 14px; }
   #zonePull { position: absolute; top: 0; bottom: 0; background: rgba(255,207,92,.30);
@@ -130,6 +131,7 @@
   <div id="cards"></div>
   <button id="randomBtn">随机一抽</button>
   <div class="footHint">按住向左拖动拉开拉链 · 档案弹出后自动播放 ·
+    <button id="exportCalib">导出校准文件</button> ·
     <button id="resetCalib">重置全部校准</button></div>
 </div>
 
@@ -153,6 +155,7 @@
 <div id="calib">
   <div class="box">
     <h2 id="calibTitle">校准</h2>
+    <div id="calibMode" class="mode"></div>
     <div class="tip">
       白色游标：拖动下方滑块或点击进度条移动。<br>
       <b>拉包段</b>（黄色区域）= 鼠标可控的部分：左边界是"开始能拖"的起点，右边界是"拉链完全拉开、档案即将弹出"的终点，终点之后自动播放。拖动两个黄色手柄调整。
@@ -198,8 +201,9 @@ function rarityColor(name) {
 /* ---------------- 持久化 ---------------- */
 const calibKey = f => "akpull.v1." + f;
 const oldVideoPath = f => "视频素材/" + f.split("/").pop();
-function loadCalib(file) {
-  for (const path of [file, oldVideoPath(file)]) {
+const baseName = f => f.split("/").pop();
+function loadLocalCalib(item) { // 本机浏览器里存过的旧校准（file:// 或旧版本写入的）
+  for (const path of [item.file, oldVideoPath(item.file)]) {
     try { const v = JSON.parse(localStorage.getItem(calibKey(path)));
       // 旧版 2.90–3.55s 是未校准的默认区间；忽略它，让新素材终点生效。
       if (v && v.start < v.end && !(v.start === 2.9 && v.end === 3.55)) return v;
@@ -208,6 +212,53 @@ function loadCalib(file) {
   return null;
 }
 let muted = localStorage.getItem("akpull.muted") === "1";
+
+/* 共享校准：存在仓库的 calibrations.json 里，随 git 提交后全队生效。
+   由 server.mjs 提供服务时可自动写回文件（共享模式）；
+   直接双击打开 HTML 时退回本机浏览器保存（本机模式），可用"导出校准文件"手动落盘。 */
+let CAL = {};          // { "视频文件名.mp4": {start, end} }
+let canShare = false;  // 当前页面是否由 server.mjs 提供（能写回文件）
+let calibSaveTimer = 0;
+
+async function initCalib() {
+  try { const p = await fetch("api/ping", { cache: "no-store" });
+    if (p.ok) canShare = (await p.json()).ok === true; } catch (e) {}
+  try {
+    const r = await fetch(canShare ? "api/calibrations" : "calibrations.json", { cache: "no-store" });
+    if (r.ok) CAL = await r.json() || {};
+  } catch (e) {}
+  let dirty = false; // 把本机浏览器里的旧校准并入文件里缺的项
+  for (const item of VIDEOS) {
+    const k = baseName(item.file);
+    if (!CAL[k]) { const c = loadLocalCalib(item); if (c) { CAL[k] = c; dirty = true; } }
+  }
+  if (canShare && dirty) pushCalib();
+  updateCalibModeUI();
+}
+function calibOf(item) { return CAL[baseName(item.file)] || null; }
+function loadCalib(item) { return calibOf(item) || loadLocalCalib(item); }
+function pushCalib() { // 防抖写回，拖手柄时不会疯狂写盘
+  clearTimeout(calibSaveTimer);
+  calibSaveTimer = setTimeout(async () => {
+    try {
+      const r = await fetch("api/calibrations", { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(CAL, null, 2) });
+      if (!r.ok) throw new Error("save failed");
+      canShare = true;
+    } catch (e) {
+      if (canShare) toast("写入 calibrations.json 失败，本次校准只保存在本机浏览器");
+      canShare = false;
+    }
+    updateCalibModeUI();
+  }, 250);
+}
+function updateCalibModeUI() {
+  const el = $("calibMode");
+  if (el) el.textContent = canShare
+    ? "共享模式：校准已自动保存到 calibrations.json，可提交到仓库"
+    : "本机模式：校准只存在这台电脑的浏览器里。用「启动模拟器.bat」打开可自动保存到文件，或点下方\"导出校准文件\"";
+}
+initCalib();
 
 /* ---------------- 选中界面 ---------------- */
 const cardsEl = $("cards");
@@ -234,10 +285,22 @@ $("randomBtn").addEventListener("click", () => {
 });
 $("resetCalib").addEventListener("click", () => {
   VIDEOS.forEach(v => {
+    delete CAL[baseName(v.file)];
     localStorage.removeItem(calibKey(v.file));
     localStorage.removeItem(calibKey(oldVideoPath(v.file)));
   });
+  if (canShare) pushCalib();
   toast("已重置全部校准");
+});
+$("exportCalib").addEventListener("click", () => {
+  VIDEOS.forEach(item => { const k = baseName(item.file);
+    if (!CAL[k]) { const c = loadLocalCalib(item); if (c) CAL[k] = c; } });
+  const blob = new Blob([JSON.stringify(CAL, null, 2) + "\n"], { type: "application/json" });
+  const a = Object.assign(document.createElement("a"),
+    { href: URL.createObjectURL(blob), download: "calibrations.json" });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast("已下载 calibrations.json，请放到本页面所在文件夹并提交");
 });
 
 /* ---------------- 舞台 / 状态机 ----------------
@@ -281,7 +344,7 @@ function openStage(i, withCalib) {
   cancelPullSeek();
   S.item = VIDEOS[i];
   if (!S.item) return;
-  const c = loadCalib(S.item.file);
+  const c = loadCalib(S.item);
   S.start = (c ? c.start : S.item.start) || DEFAULT_PULL.start;
   S.end   = (c ? c.end   : S.item.end)   || DEFAULT_PULL.end;
   S.view = "stage";
@@ -465,13 +528,20 @@ $("testPlay").addEventListener("click", () => {
   video.currentTime = Math.max(0, S.start - 0.3); calibTesting = true; playSafe();
 });
 $("defCalib").addEventListener("click", () => {
+  delete CAL[baseName(S.item.file)];
   localStorage.removeItem(calibKey(S.item.file));
+  localStorage.removeItem(calibKey(oldVideoPath(S.item.file)));
+  if (canShare) pushCalib();
   S.start = S.item.start || DEFAULT_PULL.start;
   S.end = S.item.end || DEFAULT_PULL.end;
   toast("已恢复默认"); refreshCalibUI();
 });
 $("closeCalib").addEventListener("click", closeCalib);
-function saveCalib() { localStorage.setItem(calibKey(S.item.file), JSON.stringify({ start: S.start, end: S.end })); }
+function saveCalib() {
+  CAL[baseName(S.item.file)] = { start: S.start, end: S.end };
+  if (canShare) pushCalib();
+  else localStorage.setItem(calibKey(S.item.file), JSON.stringify({ start: S.start, end: S.end }));
+}
 
 /* 校准区域手柄拖动 */
 document.querySelectorAll(".zHandle").forEach(h => {
