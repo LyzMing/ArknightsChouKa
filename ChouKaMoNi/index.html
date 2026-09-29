@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<title>拉包模拟器</title>
+<title>社团特别寻访 · 四档奖赏</title>
 <style>
   :root {
     --bg: #0c0d0f;
@@ -230,22 +230,49 @@
     opacity: 0; pointer-events: none; transition: opacity .25s; }
   #toast.on { opacity: 1; }
 </style>
+<link rel="stylesheet" href="summon.css">
 </head>
 <body>
 
-<div id="gallery">
-  <h1>拉包模拟器</h1>
-  <div class="sub">HUMAN RESOURCE PACKAGE</div>
-  <div id="cards"></div>
+<main id="gallery">
+  <header class="summonHeader">
+    <div class="brandMark">◇</div><div class="headerTitle">社团寻访 <span>CLUB HEADHUNTING</span></div>
+    <div class="headerMeta"><span class="liveDot"></span> 线下限定 <b>04</b> 档奖赏</div>
+    <button id="inventoryBtn">库存设置 <span>⚙</span></button>
+  </header>
+  <section class="summonBanner" aria-label="四个等级的奖项展示">
+    <div class="bannerGrid"></div><div class="bannerSerial">SPECIAL COLLECTION / 001</div>
+    <div class="bannerTopline"><span>社团特别企划</span><span>COLLECT YOUR MOMENT.</span></div>
+    <div class="prizeComposition">
+      <button class="prizeFeature firstPrize" data-prize="first" aria-label="查看一等奖立牌">
+        <div class="prizeArt"><img data-art="first" alt="社娘立牌"></div>
+        <div class="prizeCaption"><div class="stars">★★★★★</div><div class="tierName">一等奖 <span>立牌</span></div><small>ACRYLIC STANDEE</small></div>
+      </button>
+      <button class="prizeFeature secondPrize" data-prize="second" aria-label="查看二等奖钥匙扣">
+        <div class="prizeArt"><img data-art="second" alt="社娘钥匙扣"></div>
+        <div class="prizeCaption"><div class="stars">★★★★</div><div class="tierName">二等奖 <span>钥匙扣</span></div><small>CHARACTER KEYCHAIN</small></div>
+      </button>
+      <button class="prizeFeature thirdPrize" data-prize="third" aria-label="查看三等奖冰箱贴">
+        <div class="prizeArt"><img data-art="third" alt="社娘冰箱贴"></div>
+        <div class="prizeCaption"><div class="stars">★★★</div><div class="tierName">三等奖 <span>冰箱贴</span></div><small>CHARACTER MAGNET</small></div>
+      </button>
+      <button class="prizeFeature grandPrize" data-prize="grand" aria-label="查看特等奖影之刃零">
+        <img class="grandArt" data-art="grand" alt="影之刃零">
+        <div class="grandWash"></div><span class="grandTag">特别奖赏 / SPECIAL PRIZE</span>
+        <div class="prizeCaption"><div class="stars">★★★★★★</div><div class="tierName">特等奖</div><div class="grandName">影之刃零</div><small>PHANTOM BLADE ZERO</small></div>
+      </button>
+    </div>
+    <div class="bannerBottom">
+      <div class="campaign"><div class="campaignKicker">LIMITED COLLECTION · 社团限定奖池</div><h1>让热爱，即刻登场<span>///</span></h1><p>四档好礼 · 每抽必中 <span>款式以现场实物为准</span></p><button id="prizeDetailsBtn">▸ 查看全部奖品</button></div>
+      <div class="drawPanel"><div class="drawPromise"><strong>4</strong> 档奖赏 <span>等待你的寻访</span></div><div class="drawTicket">◇ 单次寻访 <span>每次获得一份奖品</span></div><button id="randomBtn">寻访一次 <span>〉</span></button><p>开启后，按住拉链向左拖动</p></div>
+    </div>
+  </section>
+  <div class="stockHeading"><span>奖池情报 <small>PRIZE POOL</small></span><span>实时剩余 / 总库存</span></div>
   <div id="inventoryStrip"></div>
-  <div class="drawActions">
-    <button id="randomBtn">随机一抽</button>
-    <button id="inventoryBtn">库存设置</button>
-  </div>
-  <div class="footHint">按住向左拖动拉开拉链 · 档案弹出后自动播放 ·
-    <button id="exportCalib">导出校准文件</button> ·
-    <button id="resetCalib">重置全部校准</button></div>
-</div>
+  <footer class="summonFooter"><span>CLUB COLLECTION <b> / </b> 与热爱不期而遇</span><button id="demoBtn">演出预览与校准 ↗</button></footer>
+</main>
+<dialog id="prizeDialog"><div class="dialogHeading"><div><small>PRIZE ARCHIVE</small><h2 id="prizeDialogTitle">奖品一览</h2></div><button class="dialogClose" data-close="prizeDialog" aria-label="关闭奖品一览">×</button></div><div class="prizeTabs" id="prizeTabs"></div><p class="archiveNote">图片为款式展示，具体款式以现场实物为准。</p><div id="prizeArchive"></div></dialog>
+<dialog id="demoDialog"><div class="dialogHeading"><div><small>ANIMATION PREVIEW</small><h2>演出预览与校准</h2></div><button class="dialogClose" data-close="demoDialog" aria-label="关闭演出预览">×</button></div><p class="archiveNote">点击卡片预览演出，不消耗库存；齿轮用于校准拉链。</p><div id="cards"></div><div class="footHint"><button id="exportCalib">导出校准文件</button> · <button id="resetCalib">重置全部校准</button></div></dialog>
 
 <div id="stage">
   <video id="video" preload="auto" playsinline></video>
@@ -585,10 +612,11 @@ VIDEOS.forEach((item, i) => {
   tv.addEventListener("loadedmetadata", () => { tv.currentTime = 2.9; });
   card.addEventListener("click", () => {
     if (ghostClickGuard()) return;
+    $("demoDialog").close();
     openStage(i);
   });
   card.querySelector(".gear").addEventListener("click", e => {
-    e.stopPropagation(); if (ghostClickGuard()) return; openStage(i, true);
+    e.stopPropagation(); if (ghostClickGuard()) return; $("demoDialog").close(); openStage(i, true);
   });
   cardsEl.appendChild(card);
 });
@@ -1132,5 +1160,6 @@ function toast(msg) {
 }
 window.addEventListener("resize", () => { if (calib.classList.contains("on")) refreshCalibUI(); });
 </script>
+<script src="summon.js"></script>
 </body>
 </html>
