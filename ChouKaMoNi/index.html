@@ -110,10 +110,8 @@
   #rcLogo { position: absolute; left: 19%; top: 22.5%; height: 37%; opacity: .96; }
   #resultCard.play #rcLogo { animation: rcFade .5s ease-out .15s backwards; }
   #rcPrize { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); }
-  #rcPrize.standee { max-height: 85%; max-width: 46%; object-fit: contain;
-    filter: drop-shadow(0 10px 36px rgba(0,0,0,.65)); }
-  /* 横版透明图（表情包类）悬停在名字区上方，避免压住星星和文字 */
-  #rcPrize.sticker { max-height: 34%; max-width: 54%; object-fit: contain; top: 22%; bottom: auto;
+  /* 透明底实拍奖品图：悬停在名字区上方，避免压住星星和文字 */
+  #rcPrize.sticker { max-height: 37%; max-width: 58%; object-fit: contain; top: 20%; bottom: auto;
     filter: drop-shadow(0 10px 30px rgba(0,0,0,.6)); }
   #rcPrize.poster { max-height: 52%; max-width: 38%; object-fit: contain; top: 5%; bottom: auto;
     border: 2px solid rgba(255,255,255,.85); background: #000;
@@ -244,17 +242,19 @@
     <div class="bannerGrid"></div><div class="bannerSerial">SPECIAL COLLECTION / 001</div>
     <div class="bannerTopline"><span>社团特别企划</span><span>COLLECT YOUR MOMENT.</span></div>
     <div class="prizeComposition">
-      <button class="prizeFeature firstPrize" data-prize="first" aria-label="查看一等奖立牌">
-        <div class="prizeArt"><img data-art="first" alt="社娘立牌"></div>
-        <div class="prizeCaption"><div class="stars">★★★★★</div><div class="tierName">一等奖 <span>立牌</span></div><small>ACRYLIC STANDEE</small></div>
+      <!-- 海报图片与文案由 summon.js 按 prizes.js 里的档位数据填入：
+           图片取该档的实拍图，文案同时给出奖项等级和奖品种类。 -->
+      <button class="prizeFeature firstPrize" data-prize="first" aria-label="查看一等奖奖品">
+        <div class="prizeArt"><img data-art="first" alt="一等奖奖品"></div>
+        <div class="prizeCaption"><div class="stars">★★★★★</div><div class="tierName"></div><small></small></div>
       </button>
-      <button class="prizeFeature secondPrize" data-prize="second" aria-label="查看二等奖钥匙扣">
-        <div class="prizeArt"><img data-art="second" alt="社娘钥匙扣"></div>
-        <div class="prizeCaption"><div class="stars">★★★★</div><div class="tierName">二等奖 <span>钥匙扣</span></div><small>CHARACTER KEYCHAIN</small></div>
+      <button class="prizeFeature secondPrize" data-prize="second" aria-label="查看二等奖奖品">
+        <div class="prizeArt"><img data-art="second" alt="二等奖奖品"></div>
+        <div class="prizeCaption"><div class="stars">★★★★</div><div class="tierName"></div><small></small></div>
       </button>
-      <button class="prizeFeature thirdPrize" data-prize="third" aria-label="查看三等奖冰箱贴">
-        <div class="prizeArt"><img data-art="third" alt="社娘冰箱贴"></div>
-        <div class="prizeCaption"><div class="stars">★★★</div><div class="tierName">三等奖 <span>冰箱贴</span></div><small>CHARACTER MAGNET</small></div>
+      <button class="prizeFeature thirdPrize" data-prize="third" aria-label="查看三等奖奖品">
+        <div class="prizeArt"><img data-art="third" alt="三等奖奖品"></div>
+        <div class="prizeCaption"><div class="stars">★★★</div><div class="tierName"></div><small></small></div>
       </button>
       <button class="prizeFeature grandPrize" data-prize="grand" aria-label="查看特等奖影之刃零">
         <img class="grandArt" data-art="grand" alt="影之刃零">
@@ -271,7 +271,7 @@
   <div id="inventoryStrip"></div>
   <footer class="summonFooter"><span>CLUB COLLECTION <b> / </b> 与热爱不期而遇</span><button id="demoBtn">演出预览与校准 ↗</button></footer>
 </main>
-<dialog id="prizeDialog"><div class="dialogHeading"><div><small>PRIZE ARCHIVE</small><h2 id="prizeDialogTitle">奖品一览</h2></div><button class="dialogClose" data-close="prizeDialog" aria-label="关闭奖品一览">×</button></div><div class="prizeTabs" id="prizeTabs"></div><p class="archiveNote">图片为款式展示，具体款式以现场实物为准。</p><div id="prizeArchive"></div></dialog>
+<dialog id="prizeDialog"><div class="dialogHeading"><div><small>PRIZE ARCHIVE</small><h2 id="prizeDialogTitle">奖品一览</h2></div><button class="dialogClose" data-close="prizeDialog" aria-label="关闭奖品一览">×</button></div><div class="prizeTabs" id="prizeTabs"></div><p class="archiveNote">奖品图按档位展示，同档多件算一份，具体款式以现场实物为准。</p><div id="prizeArchive"></div></dialog>
 <dialog id="demoDialog"><div class="dialogHeading"><div><small>ANIMATION PREVIEW</small><h2>演出预览与校准</h2></div><button class="dialogClose" data-close="demoDialog" aria-label="关闭演出预览">×</button></div><p class="archiveNote">点击卡片预览演出，不消耗库存；齿轮用于校准拉链。</p><div id="cards"></div><div class="footHint"><button id="exportCalib">导出校准文件</button> · <button id="resetCalib">重置全部校准</button></div></dialog>
 
 <div id="stage">
@@ -1005,11 +1005,10 @@ function showResultCard() {
   if (prize) {
     rc.prize.style.display = "";
     rc.prize.onload = () => {
-      const ratio = rc.prize.naturalWidth / (rc.prize.naturalHeight || 1);
-      // 竖长透明图落地当立绘；方图/横图悬停展示；不透明图当海报
-      const mode = isOpaqueImage(rc.prize) ? "poster"
-        : (ratio < 0.75 ? "standee" : "sticker");
-      rc.prize.classList.remove("poster", "standee", "sticker");
+      // 不透明整图当海报（带白框居中）；透明底实拍奖品图悬停在名字区上方。
+      // 换奖后每档只有一张实拍图，不再按长宽比分「立绘 / 贴纸」两种摆法。
+      const mode = isOpaqueImage(rc.prize) ? "poster" : "sticker";
+      rc.prize.classList.remove("poster", "sticker");
       rc.prize.classList.add(mode);
     };
     rc.prize.onerror = () => { rc.prize.style.display = "none"; };
@@ -1018,7 +1017,7 @@ function showResultCard() {
     rc.en.textContent = prize.en;
     rc.en.style.display = prize.en ? "" : "none";
   } else { // 档位还没有奖品素材：只展示档位名占位
-    rc.prize.classList.remove("poster", "standee", "sticker");
+    rc.prize.classList.remove("poster", "sticker");
     rc.prize.removeAttribute("src");
     rc.cn.textContent = RESULT_TIER_CN[prizeId] || "";
     rc.en.textContent = "";

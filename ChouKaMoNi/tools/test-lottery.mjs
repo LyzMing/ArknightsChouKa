@@ -11,11 +11,11 @@ function memoryStorage() {
 
 const lottery = globalThis.AKLottery.create(memoryStorage());
 let state = lottery.snapshot();
-assert.deepEqual(state.prizes.map(prize => prize.remaining), [1, 21, 48, 96]);
-assert.equal(state.prizes.reduce((sum, prize) => sum + prize.remaining, 0), 166);
+assert.deepEqual(state.prizes.map(prize => prize.remaining), [1, 51, 35, 162]);
+assert.equal(state.prizes.reduce((sum, prize) => sum + prize.remaining, 0), 249);
 
 const dynamicRates = lottery.probabilities();
-assert.ok(Math.abs(dynamicRates.find(item => item.id === "grand").probability - 1 / 166) < 1e-12);
+assert.ok(Math.abs(dynamicRates.find(item => item.id === "grand").probability - 1 / 249) < 1e-12);
 assert.ok(Math.abs(dynamicRates.reduce((sum, item) => sum + item.probability, 0) - 1) < 1e-12);
 
 const plan = lottery.planDraw();
@@ -25,7 +25,7 @@ assert.deepEqual(secondCommit, firstCommit, "重复提交必须幂等");
 assert.equal(firstCommit.roll, plan.roll, "记录应保留随机数以便审计");
 state = lottery.snapshot();
 assert.equal(state.history.length, 1);
-assert.equal(state.prizes.reduce((sum, prize) => sum + prize.remaining, 0), 165);
+assert.equal(state.prizes.reduce((sum, prize) => sum + prize.remaining, 0), 248);
 
 lottery.updateConfig({
   mode: "fixed",
@@ -45,7 +45,7 @@ assert.throws(() => lottery.updateConfig({
 
 lottery.resetInventory();
 state = lottery.snapshot();
-assert.deepEqual(state.prizes.map(prize => prize.remaining), [1, 21, 48, 96]);
+assert.deepEqual(state.prizes.map(prize => prize.remaining), [1, 51, 35, 162]);
 assert.equal(state.history.length, 1, "补满库存不应删除审计记录");
 
 console.log("lottery-system: all tests passed");

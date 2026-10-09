@@ -35,12 +35,35 @@ const list = files.map(f => ({
 writeFileSync("videos.js", "window.AK_VIDEOS = " + JSON.stringify(list, null, 2) + ";\n");
 console.log(`videos.js 已生成，共 ${list.length} 个视频`);
 
-/* ---------------- 奖品素材：生成 prizes.js ---------------- */
+/* ---------------- 奖品素材：生成 prizes.js ----------------
+   2026 秋季紧急换奖：供货变动，奖品整体换成「美术素材库/奖品素材新」里的实拍图，每档一张。
+   抽奖仍按奖项等级计算库存与概率，不区分具体款式。 */
 import { readdirSync as rd } from "fs";
-const PRIZE_DIR = "美术素材库/奖品素材";
+const PRIZE_DIR = "美术素材库/奖品素材新";
 const UI_DIR = "美术素材库/干员展示UI";
 const IMG_EXT = [".png", ".jpg", ".jpeg", ".webp"];
 const TIER_BY_FOLDER = [["特等奖", "grand"], ["一等奖", "first"], ["二等奖", "second"], ["三等奖", "third"]];
+
+// 结果展示卡上的奖品名。grand 为 null = 沿用文件名里的奖品本名（「影之刃零」保持不变）；
+// 其余三档按需求只显示奖项等级，并配对应的英文名。
+const RESULT_NAME = {
+  grand: null,
+  first: { cn: "一等奖", en: "First Prize" },
+  second: { cn: "二等奖", en: "Second Prize" },
+  third: { cn: "三等奖", en: "Third Prize" },
+};
+
+// 主界面海报上的文案。那里设计成同时展示奖项等级和奖品种类，所以种类写全。
+const TIER_LABEL = [
+  { id: "grand", name: "特等奖", nameEn: "Grand Prize",
+    category: "影之刃零", categoryEn: "PHANTOM BLADE ZERO" },
+  { id: "first", name: "一等奖", nameEn: "First Prize",
+    category: "徽章 · 木钥匙扣", categoryEn: "BADGE · WOODEN KEYCHAIN" },
+  { id: "second", name: "二等奖", nameEn: "Second Prize",
+    category: "大贴纸 · 明信片 · 亚克力钥匙扣", categoryEn: "STICKER · POSTCARD · ACRYLIC KEYCHAIN" },
+  { id: "third", name: "三等奖", nameEn: "Third Prize",
+    category: "小豆丁 · 社娘小贴纸 · UT小贴纸", categoryEn: "MINI CHARM · STICKER · UT STICKER" },
+];
 
 function scanImages(dir, parts = []) {
   return rd(dir, { withFileTypes: true }).flatMap(entry => {
@@ -53,15 +76,16 @@ function scanImages(dir, parts = []) {
   });
 }
 
-// 文件名约定：中文名-英文名.png（按第一个半角连字符切分）
-function prizeEntry(relPath) {
+// 文件名约定：中文名-英文名.png（按第一个半角连字符切分）。
+// 结果卡要按档位显示时，用 RESULT_NAME 覆盖解析出来的名字。
+function prizeEntry(relPath, id) {
   const base = relPath.split("/").at(-1).replace(/\.[^.]+$/, "");
   const dash = base.indexOf("-");
-  return {
-    file: `${PRIZE_DIR}/${relPath}`,
+  const fromFile = {
     cn: dash < 0 ? base : base.slice(0, dash),
     en: dash < 0 ? "" : base.slice(dash + 1).trim(),
   };
+  return { file: `${PRIZE_DIR}/${relPath}`, ...(RESULT_NAME[id] || fromFile) };
 }
 
 const prizes = {};
@@ -69,7 +93,7 @@ for (const [word, id] of TIER_BY_FOLDER) {
   prizes[id] = scanImages(PRIZE_DIR)
     .filter(rel => rel.split("/")[0].startsWith(word))
     .sort((a, b) => a.localeCompare(b, "zh-CN"))
-    .map(prizeEntry);
+    .map(rel => prizeEntry(rel, id));
 }
 
 // 展示卡 UI 素材按前缀定位（文件名里的打包哈希变了也不怕）
@@ -92,6 +116,7 @@ const assets = {
 
 writeFileSync("prizes.js",
   "window.AK_PRIZES = " + JSON.stringify(prizes, null, 2) + ";\n" +
+  "window.AK_PRIZE_TIERS = " + JSON.stringify(TIER_LABEL, null, 2) + ";\n" +
   "window.AK_RESULT_ASSETS = " + JSON.stringify(assets, null, 2) + ";\n");
 console.log(`prizes.js 已生成：` +
   TIER_BY_FOLDER.map(([w, id]) => `${id}=${prizes[id].length}`).join(" "));

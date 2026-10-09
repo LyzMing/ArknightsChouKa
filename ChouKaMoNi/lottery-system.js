@@ -3,12 +3,14 @@
   "use strict";
 
   const STORAGE_KEY = "aklottery.v1.state";
-  const VERSION = 1;
+  // 2：2026 秋季紧急换奖，四档总库存整体改为 1 / 51 / 35 / 162。
+  // 旧版本存下的库存作废，但抽奖记录作为历史日志保留。
+  const VERSION = 2;
   const DEFAULT_PRIZES = [
-    { id: "grand",  name: "特等奖", total: 1,  weight: 1, fixedRate: 1 / 166 },
-    { id: "first",  name: "一等奖", total: 21, weight: 1, fixedRate: 21 / 166 },
-    { id: "second", name: "二等奖", total: 48, weight: 1, fixedRate: 48 / 166 },
-    { id: "third",  name: "三等奖", total: 96, weight: 1, fixedRate: 96 / 166 },
+    { id: "grand",  name: "特等奖", total: 1,   weight: 1, fixedRate: 1 / 249 },
+    { id: "first",  name: "一等奖", total: 51,  weight: 1, fixedRate: 51 / 249 },
+    { id: "second", name: "二等奖", total: 35,  weight: 1, fixedRate: 35 / 249 },
+    { id: "third",  name: "三等奖", total: 162, weight: 1, fixedRate: 162 / 249 },
   ];
 
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -32,6 +34,11 @@
   function normalize(raw) {
     const base = freshState();
     if (!raw || typeof raw !== "object") return base;
+    // 换奖后版本号变了：四档总库存按新奖品重置，旧记录留作历史日志。
+    if (raw.version !== VERSION) {
+      base.history = Array.isArray(raw.history) ? raw.history.slice(-10000) : [];
+      return base;
+    }
     base.mode = raw.mode === "fixed" ? "fixed" : "dynamic";
     base.prizes = DEFAULT_PRIZES.map(defaultPrize => {
       const saved = Array.isArray(raw.prizes)
