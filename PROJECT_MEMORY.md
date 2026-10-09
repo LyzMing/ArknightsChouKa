@@ -71,3 +71,16 @@
 - 视频是 **1606×720**，而 `美术素材库/抽卡帧/` 里的帧是缩到 960×430 的副本，两者比例一致，所以热区用相对比例换算即可。`SKIP_BOX` 常量在 `index.html` 里，换视频源后如果 SKIP 位置变了要重新量。
 - 删掉了原来右下角的 `#skipBtn`（「跳过 ▸」），它在片头"包掉下来还不能拉"的时候显示，和上面那个 SKIP 重复。相关 CSS 和 `enterPullReady()` 的按钮监听一并去掉；`enterPullReady()` 本身保留，仍由 `loop()` 在片头播到起点时调用。
 - 注意：`#skipHotspot` 的 `z-index:4` 低于右上角 `#rightCtl`（静音/校准，`z-index:5`），校准面板打开时（`#stage.calibrating`）和结果卡显示时都会隐藏，避免误点。
+
+### 踩坑：跳过时的「声音不停 + 结果卡弹两次」
+
+初版跳过是直接调 `commit()`，结果在拉包中途点 SKIP 会出现：结果卡已经出来了，却还能听到视频声音，等声音放完又黑屏重新展示一次奖品。
+
+原因：`commit()` 不只是扣库存，它还会跑一段拉链补间（130~330ms），补间结束后由 `finishPullCommit()` 启动"拉链拉开之后"的视频自动段（`setPhase("auto")` + `playSafe()`）。跳过时这段补间还在飞，几百毫秒后才回来把 phase 从 `ended` 改回 `auto` 并开始播放 → 声音；视频播完 `ended` 事件看到 `S.phase === "auto"` 就又调了一次 `showResultCard()` → 结果卡重播（入场动画重跑，所以先黑一下）。
+
+修法：
+- 把扣库存 + 广播抽成 `commitDraw()`（幂等），`commit()` = `commitDraw()` + 补间 + `finishPullCommit()`。
+- 加了代次变量 `let pullSeq = 0`：`commit()` 里 `const seq = ++pullSeq`，补间的每帧回调、`finishPullCommit(seq)` 和里面 `resume()` 都检查 `seq !== pullSeq` 就退出。
+- 跳过时 `pullSeq++` 作废在途的那一轮，然后只调 `commitDraw()` + `showResultCard()`，根本不启动视频自动段。
+
+注意：无头 Chrome（`--headless=new` 和 `--headless=old` 都一样）里 `requestAnimationFrame` 几乎不触发，补间根本跑不完，所以这个 bug 在无头截图里复现不出来。验证时要在探针里把 `window.requestAnimationFrame` 换成 `setTimeout` 顶替，补间才会真正走完。

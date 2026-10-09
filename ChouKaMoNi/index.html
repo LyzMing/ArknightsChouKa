@@ -854,6 +854,12 @@ stage.addEventListener("pointercancel", e => {
 });
 stage.addEventListener("contextmenu", e => { if (S.phase === "drag") e.preventDefault(); });
 
+/* 拉链收尾流程的"代次"。
+   点「跳过」时会把编号 +1，让还在跑的那轮补间和它的收尾回调全部失效——
+   否则补间结束后照样会去播"拉链拉开之后"的视频自动段：
+   声音会在结果卡后面继续响，视频播完还会再弹一次结果卡。 */
+let pullSeq = 0;
+
 /* 缓动补间 */
 function tween(from, to, dur, ease, onU, onEnd) {
   const t0 = performance.now();
@@ -873,33 +879,41 @@ function park() {
   stage.classList.toggle("started", drag.p > 0.02);
   setPhase("ready");
 }
+/* 扣库存 + 广播。拉满和「跳过」都走这里；同一 token 重复提交只扣一次。
+   返回 false 表示扣减失败（已经关掉舞台）。 */
+function commitDraw() {
+  if (!S.pendingDraw || S.committedDraw) return true;
+  try {
+    S.committedDraw = LOTTERY.commitDraw(S.pendingDraw);
+    const badge = $("drawBadge");
+    // 只报档位，不显示剩余库存：这块角标是投屏上观众能看到的。
+    badge.textContent = `已抽中 ${S.committedDraw.prizeName}`;
+    badge.classList.add("on");
+    renderInventorySummary();
+    window.dispatchEvent(new CustomEvent("ak-lottery-draw-committed", { detail: S.committedDraw }));
+    return true;
+  } catch (error) {
+    toast(error.message || "库存扣减失败，请重新抽取");
+    closeStage();
+    return false;
+  }
+}
 function commit() {
   cancelPullSeek();
   drag.pointerId = null;
-  if (S.pendingDraw && !S.committedDraw) {
-    try {
-      S.committedDraw = LOTTERY.commitDraw(S.pendingDraw);
-      const badge = $("drawBadge");
-      // 只报档位，不显示剩余库存：这块角标是投屏上观众能看到的。
-      badge.textContent = `已抽中 ${S.committedDraw.prizeName}`;
-      badge.classList.add("on");
-      renderInventorySummary();
-      window.dispatchEvent(new CustomEvent("ak-lottery-draw-committed", { detail: S.committedDraw }));
-    } catch (error) {
-      toast(error.message || "库存扣减失败，请重新抽取");
-      closeStage();
-      return;
-    }
-  }
+  if (!commitDraw()) return;
+  const seq = ++pullSeq; // 这一轮的编号，被「跳过」打断后就不再往下走
   setPhase("commit");
   const p0 = clamp(drag.p, 0, 1);
   tween(p0, 1, 130 + 200 * (1 - p0), easeInQuad,
     v => {
+      if (seq !== pullSeq) return;
       if (!showPullProgress(v)) video.currentTime = pToTime(v);
       bar.style.width = v * 100 + "%";
-    }, finishPullCommit);
+    }, () => finishPullCommit(seq));
 }
-function finishPullCommit() {
+function finishPullCommit(seq) {
+  if (seq !== pullSeq) return; // 已经被「跳过」接管：别再启动视频自动段
   const usedFrames = stage.classList.contains("frameMode");
   if (!usedFrames) {
     video.currentTime = S.end;
@@ -909,7 +923,7 @@ function finishPullCommit() {
   }
   let resumed = false;
   const resume = () => {
-    if (resumed || S.view !== "stage") return;
+    if (resumed || S.view !== "stage" || seq !== pullSeq) return;
     resumed = true;
     setPhase("auto");
     playSafe();
@@ -949,9 +963,10 @@ addEventListener("resize", syncSkipHotspot);
 video.addEventListener("loadedmetadata", syncSkipHotspot);
 skipHotspot.addEventListener("click", () => {
   if (S.view !== "stage" || S.phase === "ended") return;
+  pullSeq++;          // 作废还在跑的那轮拉链补间，否则它会接着播视频自动段
   cancelPullSeek();
   video.pause();      // 动画的声音不要跟在结果卡后面继续响
-  commit();           // 有预选中的奖就在这里扣库存，和"拉满"走同一条幂等路径
+  if (!commitDraw()) return;
   showResultCard();   // 直接跳到抽中奖品的展示
 });
 
