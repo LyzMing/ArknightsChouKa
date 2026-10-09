@@ -63,3 +63,11 @@
 - 主界面布局随新图比例做过微调（`.firstPrize` / `.secondPrize` / `.thirdPrize` 的位置尺寸、`.tierName span` 允许换行、去掉二等奖的 `image-rendering:pixelated`），并用无头 Chrome 截图逐档确认过版式。
 - **主界面不再公开奖池信息**：底部的「奖池情报 / PRIZE POOL」条（四档剩余数量 + 当前实际概率）连同 `.stockHeading` / `#inventoryStrip` / `.stockChip` 相关样式一起删除，避免现场观众看到各档剩余和概率。`renderInventorySummary()` 保留下来，但只负责同步「寻访一次」按钮的可用状态（四档抽空后置灰）。剩余数量、权重、固定概率和实际概率仍然只在「库存设置」面板里对工作人员可见。
 - 舞台上的 `#drawBadge`（拉满扣库存后短暂弹出的角标）同步去掉剩余数量，只显示「已抽中 一等奖」；`remainingAfter` 仍然写在抽奖记录里，只是不上屏。
+
+## 更新（2026-10-09 晚）：跳过按钮
+
+- 拉包视频右上角那个 **SKIP 是录进视频像素里的**（不是网页元素），所以以前点不动。现在在上面盖了一个透明热区 `#skipHotspot`：`syncSkipHotspot()` 按 `object-fit:contain` 的规则算出画面的实际显示矩形，再把热区摆到画面的 93.0%/0.5%（宽 6.8%、高 11.5%）处，正好罩住烤进画面的 SKIP。窗口尺寸变化、视频 `loadedmetadata` 和进入舞台时都会重新对齐。
+- 点这个热区 = `cancelPullSeek()` → `video.pause()` → `commit()` → `showResultCard()`：直接跳过拉包动画进入抽中奖品的展示卡。`commit()` 和"拉满"走的是同一条幂等路径，所以正常一抽仍然只扣一次库存；演示模式（点视频卡片、没有 pendingDraw）只是展示结果卡，不扣库存。
+- 视频是 **1606×720**，而 `美术素材库/抽卡帧/` 里的帧是缩到 960×430 的副本，两者比例一致，所以热区用相对比例换算即可。`SKIP_BOX` 常量在 `index.html` 里，换视频源后如果 SKIP 位置变了要重新量。
+- 删掉了原来右下角的 `#skipBtn`（「跳过 ▸」），它在片头"包掉下来还不能拉"的时候显示，和上面那个 SKIP 重复。相关 CSS 和 `enterPullReady()` 的按钮监听一并去掉；`enterPullReady()` 本身保留，仍由 `loop()` 在片头播到起点时调用。
+- 注意：`#skipHotspot` 的 `z-index:4` 低于右上角 `#rightCtl`（静音/校准，`z-index:5`），校准面板打开时（`#stage.calibrating`）和结果卡显示时都会隐藏，避免误点。

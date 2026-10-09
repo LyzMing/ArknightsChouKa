@@ -74,8 +74,15 @@
   #backBtn { top: 18px; left: 18px; }
   #rightCtl { position: absolute; top: 18px; right: 18px; display: flex; gap: 10px; z-index: 5; }
   #rightCtl .stageBtn { position: static; }
-  #skipBtn { bottom: 34px; right: 22px; display: none; }
-  #stage.intro #skipBtn { display: block; }
+  /* 画面右上角那个 SKIP 是录进视频像素里的，本身点不动。
+     这里在它上面盖一个透明热区（位置由 syncSkipHotspot() 按视频实际显示区域换算），
+     点它就跳过拉包动画，直接进入抽中奖品的展示卡。 */
+  #skipHotspot { position: absolute; z-index: 4; padding: 0; border: 0;
+    background: none; cursor: pointer; border-radius: 2px; }
+  #skipHotspot:hover { background: rgba(255,255,255,.12); }
+  #skipHotspot:focus-visible { outline: 2px solid rgba(255,255,255,.75); outline-offset: 2px; }
+  #stage.calibrating #skipHotspot, #stage.ended #skipHotspot,
+  #stage.result #skipHotspot { display: none; }
 
   #hint { position: absolute; left: 0; right: 0; bottom: 9%; text-align: center;
     pointer-events: none; opacity: 0; transition: opacity .3s; z-index: 4; }
@@ -272,7 +279,7 @@
     <button class="stageBtn" id="muteBtn">🔊</button>
     <button class="stageBtn" id="calibBtn">校准</button>
   </div>
-  <button class="stageBtn" id="skipBtn">跳过 ▸</button>
+  <button id="skipHotspot" aria-label="跳过拉包动画，直接查看抽中的奖品"></button>
   <div id="hint"><span class="arrow">◀</span><div class="txt">从 右 侧 拉 链 头 按 住 向 左 拖 动</div></div>
   <div id="bar"></div>
   <div id="resultCard">
@@ -769,6 +776,7 @@ function openStage(i, withCalib, pendingDraw) {
   video.currentTime = 0;
   setPhase("intro");
   preparePullFrames(S.item);
+  syncSkipHotspot(); // 先用兜底尺寸摆好右上角 SKIP 热区，拿到视频尺寸后会再对齐一次
   playSafe();
   if (!rafId) rafId = requestAnimationFrame(loop); // 驱动片头切换与进度条
   if (withCalib) setTimeout(() => openCalib(), 60);
@@ -917,9 +925,36 @@ function finishPullCommit() {
 
 /* ---------------- 舞台按钮 ---------------- */
 $("backBtn").addEventListener("click", closeStage);
-$("skipBtn").addEventListener("click", () => {
-  if (S.phase === "intro") enterPullReady();
+
+/* 视频右上角的 SKIP 是画面的一部分，点不动；这里把透明热区对准它。
+   视频用 object-fit:contain 播放，所以要先算出画面的实际显示矩形。 */
+const SKIP_BOX = { x: 0.930, y: 0.005, w: 0.068, h: 0.115 }; // 相对画面尺寸
+const skipHotspot = $("skipHotspot");
+function syncSkipHotspot() {
+  const el = $("skipHotspot");
+  if (!el) return;
+  const vw = video.videoWidth || 960;
+  const vh = video.videoHeight || 430;
+  const scale = Math.min(innerWidth / vw, innerHeight / vh);
+  const w = vw * scale;
+  const h = vh * scale;
+  const left = (innerWidth - w) / 2;
+  const top = (innerHeight - h) / 2;
+  el.style.left = (left + SKIP_BOX.x * w) + "px";
+  el.style.top = (top + SKIP_BOX.y * h) + "px";
+  el.style.width = (SKIP_BOX.w * w) + "px";
+  el.style.height = (SKIP_BOX.h * h) + "px";
+}
+addEventListener("resize", syncSkipHotspot);
+video.addEventListener("loadedmetadata", syncSkipHotspot);
+skipHotspot.addEventListener("click", () => {
+  if (S.view !== "stage" || S.phase === "ended") return;
+  cancelPullSeek();
+  video.pause();      // 动画的声音不要跟在结果卡后面继续响
+  commit();           // 有预选中的奖就在这里扣库存，和"拉满"走同一条幂等路径
+  showResultCard();   // 直接跳到抽中奖品的展示
 });
+
 $("muteBtn").addEventListener("click", () => {
   muted = !muted; localStorage.setItem("akpull.muted", muted ? "1" : "0");
   video.muted = muted; setMuteIcon();
