@@ -46,15 +46,6 @@
   #inventoryBtn { background: none; border: 1px solid var(--line); color: var(--txt);
     padding: 12px 20px; font-size: 13px; letter-spacing: 2px; cursor: pointer; }
   #inventoryBtn:hover { border-color: var(--accent); color: var(--accent); }
-  #inventoryStrip { display: grid; grid-template-columns: repeat(4, minmax(118px, 1fr));
-    width: min(760px, 92vw); gap: 8px; }
-  .stockChip { position: relative; overflow: hidden; background: #121419; border: 1px solid var(--line);
-    padding: 9px 12px 10px; min-width: 0; }
-  .stockChip .stockFill { position: absolute; inset: auto 0 0; height: 3px;
-    background: var(--chip, var(--accent)); opacity: .8; transform-origin: left; }
-  .stockChip .stockTop { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
-  .stockChip .stockCount { color: var(--chip, var(--accent)); font-variant-numeric: tabular-nums; }
-  .stockChip .stockRate { color: var(--dim); font-size: 11px; margin-top: 4px; }
   .footHint { color: #565a63; font-size: 12px; letter-spacing: 1px; }
   .footHint button { background: none; border: none; color: #6d7280; cursor: pointer;
     text-decoration: underline; font-size: 12px; }
@@ -217,7 +208,6 @@
     color: var(--accent); padding: 10px 22px; letter-spacing: 3px; font-size: 14px; }
   #drawBadge.on { display: block; }
   @media (max-width: 680px) {
-    #inventoryStrip { grid-template-columns: repeat(2, 1fr); }
     .inventoryTable { min-width: 720px; }
     .modeSwitch { grid-template-columns: 1fr; }
   }
@@ -267,8 +257,6 @@
       <div class="drawPanel"><div class="drawPromise"><strong>4</strong> 档奖赏 <span>等待你的寻访</span></div><div class="drawTicket">◇ 单次寻访 <span>每次获得一份奖品</span></div><button id="randomBtn">寻访一次 <span>〉</span></button><p>开启后，按住拉链向左拖动</p></div>
     </div>
   </section>
-  <div class="stockHeading"><span>奖池情报 <small>PRIZE POOL</small></span><span>实时剩余 / 总库存</span></div>
-  <div id="inventoryStrip"></div>
   <footer class="summonFooter"><span>CLUB COLLECTION <b> / </b> 与热爱不期而遇</span><button id="demoBtn">演出预览与校准 ↗</button></footer>
 </main>
 <dialog id="prizeDialog"><div class="dialogHeading"><div><small>PRIZE ARCHIVE</small><h2 id="prizeDialogTitle">奖品一览</h2></div><button class="dialogClose" data-close="prizeDialog" aria-label="关闭奖品一览">×</button></div><div class="prizeTabs" id="prizeTabs"></div><p class="archiveNote">奖品图按档位展示，同档多件算一份，具体款式以现场实物为准。</p><div id="prizeArchive"></div></dialog>
@@ -460,19 +448,9 @@ function videoIndexForPrize(prizeId) {
 }
 
 function renderInventorySummary() {
+  // 主界面不再展示"奖池情报"（剩余数量与概率只在「库存设置」面板里对工作人员可见）。
+  // 这里只同步抽奖按钮状态：四档都抽空了就禁止再抽。
   const state = LOTTERY.snapshot();
-  const rates = Object.fromEntries(LOTTERY.probabilities().map(item => [item.id, item.probability]));
-  const strip = $("inventoryStrip");
-  strip.innerHTML = "";
-  state.prizes.forEach(prize => {
-    const chip = document.createElement("div");
-    chip.className = "stockChip";
-    chip.style.setProperty("--chip", PRIZE_COLORS[prize.id]);
-    const ratio = prize.total ? prize.remaining / prize.total : 0;
-    chip.innerHTML = `<div class="stockTop"><span>${prize.name}</span><span class="stockCount">${prize.remaining}/${prize.total}</span></div>` +
-      `<div class="stockRate">当前 ${(rates[prize.id] * 100).toFixed(2)}%</div><div class="stockFill" style="transform:scaleX(${ratio})"></div>`;
-    strip.appendChild(chip);
-  });
   $("randomBtn").disabled = !state.prizes.some(prize => prize.remaining > 0);
 }
 
@@ -894,7 +872,8 @@ function commit() {
     try {
       S.committedDraw = LOTTERY.commitDraw(S.pendingDraw);
       const badge = $("drawBadge");
-      badge.textContent = `已抽中 ${S.committedDraw.prizeName} · 剩余 ${S.committedDraw.remainingAfter}`;
+      // 只报档位，不显示剩余库存：这块角标是投屏上观众能看到的。
+      badge.textContent = `已抽中 ${S.committedDraw.prizeName}`;
       badge.classList.add("on");
       renderInventorySummary();
       window.dispatchEvent(new CustomEvent("ak-lottery-draw-committed", { detail: S.committedDraw }));

@@ -61,3 +61,5 @@
 - **库存**：改为特等奖 1、一等奖 51、二等奖 35、三等奖 162（合计 249），固定概率分母同步改成 249。
 - **存档兼容**：`lottery-system.js` 的 `VERSION` 升到 2。浏览器里旧版本（v1）的存档会在下次打开时按新总库存重建奖池，旧的抽奖记录作为历史日志保留，不会静默丢弃也不会沿用过期库存。`tools/test-lottery.mjs` 的期望值已同步更新。
 - 主界面布局随新图比例做过微调（`.firstPrize` / `.secondPrize` / `.thirdPrize` 的位置尺寸、`.tierName span` 允许换行、去掉二等奖的 `image-rendering:pixelated`），并用无头 Chrome 截图逐档确认过版式。
+- **主界面不再公开奖池信息**：底部的「奖池情报 / PRIZE POOL」条（四档剩余数量 + 当前实际概率）连同 `.stockHeading` / `#inventoryStrip` / `.stockChip` 相关样式一起删除，避免现场观众看到各档剩余和概率。`renderInventorySummary()` 保留下来，但只负责同步「寻访一次」按钮的可用状态（四档抽空后置灰）。剩余数量、权重、固定概率和实际概率仍然只在「库存设置」面板里对工作人员可见。
+- 舞台上的 `#drawBadge`（拉满扣库存后短暂弹出的角标）同步去掉剩余数量，只显示「已抽中 一等奖」；`remainingAfter` 仍然写在抽奖记录里，只是不上屏。
